@@ -4,11 +4,11 @@ from fasthtml.common import *
 from app import initialize_database
 from app.controllers import *
 
-app = FastHTML()
+app, rt = fast_app()
 
 # Home page route
-@app.get('/')
-def index():
+@rt('/')
+def get():
     return (
         Title("PostgreSQL User and Group Management"),
         picolink,
@@ -67,7 +67,7 @@ def main():
         return
     
     # Run the application
-    app.run(host='0.0.0.0', port=args.app_port, allow_iframe=True, allow_cors=True)
+    serve(host='0.0.0.0', port=args.app_port, allow_iframe=True, allow_cors=True)
 
 if __name__ == '__main__':
     main()

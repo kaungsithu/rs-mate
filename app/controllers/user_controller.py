@@ -2,10 +2,11 @@ from fasthtml.common import *
 from app.models.user import PostgresUser
 from app.models.role import PostgresGroup
 
-app = FastHTML()
+# Get the app instance from the main module
+from __main__ import app, rt
 
-@app.get('/users')
-def list_users():
+@rt('/users')
+def get():
     """List all PostgreSQL users"""
     users = PostgresUser.get_all()
     
@@ -52,7 +53,7 @@ def list_users():
         cls="container mt-4"
     )
 
-@app.get('/users/new')
+@rt('/users/new')
 def new_user():
     """Show form to create a new PostgreSQL user"""
     groups = PostgresGroup.get_all()
@@ -168,7 +169,7 @@ def create_user():
             cls="container mt-4"
         )
 
-@app.get('/users/<username>')
+@rt('/users/<username>')
 def view_user(username):
     """View a PostgreSQL user's details"""
     user = PostgresUser.get_by_username(username)
@@ -243,7 +244,7 @@ def view_user(username):
         cls="container mt-4"
     )
 
-@app.get('/users/<username>/edit')
+@rt('/users/<username>/edit')
 def edit_user(username):
     """Show form to edit a PostgreSQL user"""
     user = PostgresUser.get_by_username(username)
