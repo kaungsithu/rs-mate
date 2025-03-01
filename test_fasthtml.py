@@ -1,10 +1,10 @@
 from fasthtml.common import *
 
-app = FastHTML()
+app, rt = fast_app()
 
-@app.get('/')
-def index():
+@rt('/')
+def get():
     return Div("Hello World", cls="container")
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=50798)
+    serve(host='0.0.0.0', port=50798)
