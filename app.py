@@ -9,7 +9,7 @@ app, rt = fast_app()
 # Home page route
 @rt('/')
 def get():
-    return (
+    return Div(
         Title("PostgreSQL User and Group Management"),
         picolink,
         Div(
@@ -21,16 +21,13 @@ def get():
                 Div(
                     Div(
                         Div(
-                            Div(
-                                H5("Users", cls="card-title"),
-                                P("Manage PostgreSQL database users and their privileges.", cls="card-text"),
-                                A("Manage Users", href="/users", cls="btn btn-primary")
-                            ),
-                            cls="card-body"
+                            H5("Users", cls="card-title"),
+                            P("Manage PostgreSQL database users and their privileges.", cls="card-text"),
+                            A("Manage Users", href="/users", cls="btn btn-primary")
                         ),
-                        cls="card"
+                        cls="card-body"
                     ),
-                    cls="col-md-6"
+                    cls="card col-md-6"
                 ),
                 Div(
                     Div(
