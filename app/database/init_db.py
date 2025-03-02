@@ -1,8 +1,6 @@
 from app.database.connection import DatabaseConnection
 
-default_host = "default-workgroup.755276635383.ap-southeast-1.redshift-serverless.amazonaws.com:5439/dev"
-
-def initialize_database(dbname, user, password, host=default_host, port="5439"):
+def initialize_database(dbname, user, password, host="0.0.0.0", port="5439"):
     """
     Initialize the database connection
     """
