@@ -1,5 +1,5 @@
 from fasthtml.common import *
-from app.models.user import PostgresUser
+from app.models.user import RedshiftUser
 from app.models.role import PostgresGroup
 
 # Get the app instance from the main module
@@ -7,51 +7,42 @@ from app import app, rt
 
 @rt('/users')
 def get():
-    """List all PostgreSQL users"""
-    users = PostgresUser.get_all()
-    
-    return Title("PostgreSQL Users") + Div(
-        H1("PostgreSQL Users"),
-        A("Add New User", href="/users/new", cls="btn btn-primary mb-3"),
-        Table(
-            Thead(
-                Tr(
-                    Th("Username"),
-                    Th("Superuser"),
-                    Th("Create DB"),
-                    Th("Create Role"),
-                    Th("Login"),
-                    Th("Connection Limit"),
-                    Th("Groups"),
-                    Th("Actions")
-                )
-            ),
-            Tbody(
-                [
-                    Tr(
-                        Td(user.username),
-                        Td("Yes" if user.superuser else "No"),
-                        Td("Yes" if user.createdb else "No"),
-                        Td("Yes" if user.createrole else "No"),
-                        Td("Yes" if user.login else "No"),
-                        Td(str(user.connection_limit)),
-                        Td(", ".join(user.groups) if user.groups else "None"),
-                        Td(
-                            A("View", href=f"/users/{user.username}", cls="btn btn-sm btn-info me-1"),
-                            A("Edit", href=f"/users/{user.username}/edit", cls="btn btn-sm btn-warning me-1"),
-                            Form(
-                                Button("Delete", type="submit", cls="btn btn-sm btn-danger", 
-                                       onclick="return confirm('Are you sure?')"),
-                                method="POST", action=f"/users/{user.username}/delete", style="display: inline;"
-                            )
+    """List all Redshift users"""
+    users = RedshiftUser.get_all()
+
+    card = Card(
+            A("Add New User", href="/users/new", cls="btn btn-primary mb-3"),
+            Table(Thead(Tr(Th("User ID"), Th("Username"), Th("Superuser"),
+                           Th("Create DB"), Th("Update Sytem Catalog"),
+                           Th("Password Expiry"), Th("Connection Limit"),
+                           Th("Session Defaults"), Th("Groups"), Th("Actions")
                         )
-                    ) for user in users
-                ]
-            ),
-            cls="table table-striped"
-        ),
-        cls="container mt-4"
-    )
+                    ),
+                    Tbody([Tr(
+                                Td(user.user_id),
+                                Td(user.user_name),
+                                Td("✅" if user.super_user else "🚫"),
+                                Td("✅" if user.can_create_db else "🚫"),
+                                Td("✅" if user.can_update_catalog else "🚫"),
+                                Td(str(user.password_expiry)),
+                                Td(str(user.connection_limit)),
+                                Td(", ".join(user.session_defaults) if user.session_defaults else "None"),
+                                Td(", ".join(user.groups) if user.groups else "None"),
+                                Td(
+                                    A("View", href=f"/users/{user.user_id}", cls="btn btn-sm btn-info me-1"),
+                                    A("Edit", href=f"/users/{user.user_id}/edit", cls="btn btn-sm btn-warning me-1"),
+                                    Form(
+                                        Button("Delete", type="submit", cls="btn btn-sm btn-danger", 
+                                            onclick="return confirm('Are you sure?')"),
+                                        method="POST", action=f"/users/{user.user_id}/delete", style="display: inline;"
+                                    )
+                                )
+                            ) for user in users]
+                        ), cls="table table-striped"
+                )
+        )
+    
+    return Titled("Redshift Users", card, cls="container mt-4")
 
 @rt('/users/new')
 def new_user():

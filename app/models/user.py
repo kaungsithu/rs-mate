@@ -1,21 +1,23 @@
+from app.database import connection
 from app.database.connection import DatabaseConnection
+from app.database import sql_queries as sql
 
-class PostgresUser:
+class RedshiftUser:
     """
     PostgreSQL user model for handling database user operations
     """
-    def __init__(self, username=None, superuser=False, createdb=False, createrole=False, 
-                 inherit=True, login=True, connection_limit=-1, password=None, valid_until=None):
-        self.username = username
-        self.superuser = superuser
-        self.createdb = createdb
-        self.createrole = createrole
-        self.inherit = inherit
-        self.login = login
+    def __init__(self, user_name=None, user_id=None, can_create_db=False, super_user=False, 
+                 can_update_catalog=False, password_expiry=None, session_defaults=None,
+                 connection_limit=None, groups=[]):
+        self.user_name = user_name
+        self.user_id = user_id
+        self.can_create_db = can_create_db
+        self.super_user = super_user
+        self.can_update_catalog = can_update_catalog
+        self.password_expiry = password_expiry
+        self.session_defaults = session_defaults
         self.connection_limit = connection_limit
-        self.password = password
-        self.valid_until = valid_until
-        self.groups = []
+        self.groups = groups
     
     @classmethod
     def create(cls, username, password, superuser=False, createdb=False, createrole=False, 
@@ -101,41 +103,29 @@ class PostgresUser:
     @classmethod
     def get_all(cls):
         """
-        Get all PostgreSQL users
+        Get all Redshift users
         
         Returns:
-            list: List of PostgresUser objects
+            list: List of Redshift User objects
         """
-        query = """
-        SELECT 
-            usename, 
-            usesuper, 
-            usecreatedb, 
-            rolcreaterole, 
-            useinhherit, 
-            uselogin, 
-            useconnlimit, 
-            valuntil
-        FROM pg_catalog.pg_user
-        ORDER BY usename;
-        """
+        query = sql.GET_ALL_USERS
         results = DatabaseConnection.execute_query(query)
         
         users = []
         for user_data in results:
             user = cls(
-                username=user_data[0],
-                superuser=user_data[1],
-                createdb=user_data[2],
-                createrole=user_data[3],
-                inherit=user_data[4],
-                login=user_data[5],
-                connection_limit=user_data[6],
-                valid_until=user_data[7]
+                user_name=user_data[0],
+                user_id=user_data[1],
+                can_create_db=user_data[2],
+                super_user=user_data[3],
+                can_update_catalog=user_data[4],
+                password_expiry=user_data[5],
+                session_defaults=user_data[6],
+                connection_limit=user_data[7]
             )
             
             # Get user's groups
-            user.groups = cls.get_user_groups(user.username)
+            user.groups = cls.get_user_groups(user.user_id)
             users.append(user)
             
         return users
@@ -185,7 +175,7 @@ class PostgresUser:
         return None
     
     @staticmethod
-    def get_user_groups(username):
+    def get_user_groups(user_id):
         """
         Get all groups a user belongs to
         
@@ -195,13 +185,8 @@ class PostgresUser:
         Returns:
             list: List of group names
         """
-        query = """
-        SELECT g.groname
-        FROM pg_group g
-        JOIN pg_user u ON u.usesysid = ANY(g.grolist)
-        WHERE u.usename = %s;
-        """
-        results = DatabaseConnection.execute_query(query, (username,))
+        query = sql.GET_USER_GROUPS
+        results = DatabaseConnection.execute_query(query, (user_id,))
         
         groups = []
         for group_data in results:
