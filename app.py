@@ -1,10 +1,12 @@
 import os
 import argparse
 from fasthtml.common import *
-from app import initialize_database
-from app.controllers import *
 
 app, rt = fast_app()
+
+
+from app import initialize_database
+from app.controllers import *
 
 # Home page route
 @rt('/')

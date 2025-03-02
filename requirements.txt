@@ -1,0 +1,2 @@
+psycopg2_binary==2.9.10
+python_fasthtml==0.12.4
