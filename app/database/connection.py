@@ -8,14 +8,14 @@ class DatabaseConnection:
     _connection_pool = None
 
     @classmethod
-    def initialize(cls, dbname, user, password, host="0.0.0.0", port="5432", min_connections=1, max_connections=10):
+    def initialize(cls, dbname, user, password, host="0.0.0.0", port="5432"):
         """
         Initialize the connection pool
         """
         try:
             cls._connection_pool = pool.ThreadedConnectionPool(
-                min_connections,
-                max_connections,
+                1,
+                10,
                 user=user,
                 password=password,
                 host=host,
@@ -40,7 +40,11 @@ class DatabaseConnection:
         Get a connection from the pool
         """
         if cls._connection_pool is None:
-            raise Exception("Connection pool not initialized")
+            try:
+                cls.initialize('postgres', 'postgres', 'welcome123')
+            except Exception as e:
+                print(f"Error initializing database connection pool: {e}")
+                raise Exception("Connection pool not initialized")
         return cls._connection_pool.getconn()
 
     @classmethod

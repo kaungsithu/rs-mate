@@ -111,8 +111,8 @@ class PostgresUser:
             usename, 
             usesuper, 
             usecreatedb, 
-            usecreaterole, 
-            useinherit, 
+            rolcreaterole, 
+            useinhherit, 
             uselogin, 
             useconnlimit, 
             valuntil

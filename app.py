@@ -66,7 +66,8 @@ def main():
         return
     
     # Run the application
-    serve(host='0.0.0.0', port=args.app_port, allow_iframe=True, allow_cors=True)
+    # serve(host='0.0.0.0', port=args.app_port, allow_iframe=True, allow_cors=True)
+    serve()
 
 if __name__ == '__main__':
     main()

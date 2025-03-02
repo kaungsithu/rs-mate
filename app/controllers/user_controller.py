@@ -3,7 +3,7 @@ from app.models.user import PostgresUser
 from app.models.role import PostgresGroup
 
 # Get the app instance from the main module
-from __main__ import app, rt
+from app import app, rt
 
 @rt('/users')
 def get():
