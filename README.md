@@ -1,6 +1,4 @@
-<div align="center">
-
-# ✨ <span style="color:#7c3aed">Redshift Mate</span> ✨
+# ✨ RSMate ✨
 
 ### A modern, web-based application for managing Amazon Redshift users, roles, and privileges
 
@@ -10,9 +8,8 @@
 
 ![RSMate Screencast](./img/rsmate_screen_record_um.gif)
 
-[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Contributing](#-contributing) • [License](#-license)
+[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Contributing](#-contributing) • [License](#-license) • [Repo](https://github.com/kaungsithu/rs-mate)
 
-</div>
 
 ## 🌟 Why RSMate?
 
