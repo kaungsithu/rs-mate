@@ -321,6 +321,26 @@ class RedshiftUser:
         except Exception as e:
             print(f"error updating redshift user roles: {e}")
             return False
+            
+    def delete(self, rs: Redshift) -> bool:
+        """
+        Delete this user from Redshift
+        
+        Args:
+            rs: Redshift connection
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Delete user SQL
+            delete_sql = f"DROP USER {self.user_name};"
+            
+            # Execute SQL
+            return rs.execute_cmd(delete_sql)
+        except Exception as e:
+            print(f"Error deleting user {self.user_name}: {e}")
+            return False
 
     # ===== User Privileges =====
     def grant_privilege(self, schema_name: str, object_name: str, object_type: str, 

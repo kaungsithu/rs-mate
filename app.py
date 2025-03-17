@@ -310,6 +310,28 @@ def get(session, user_id: int, schema_name: str):
     except Exception as e:
         return Div(P(f"Error loading schema content: {str(e)}"), cls='text-red-500')
 
+# Delete user
+@rt('/user/{user_id}')
+def delete(session, user_id: int):
+    try:
+        rs = get_rs(session)
+        user = RedshiftUser.get_user(user_id, rs)
+        
+        if not user:
+            add_toast(session, f'User with ID: {user_id} not found', 'error', True)
+            return None
+            
+        # Delete user
+        if user.delete(rs):
+            add_toast(session, f'User {user.user_name} deleted successfully', 'success', True)
+            return None
+        else:
+            add_toast(session, f'Error deleting user {user.user_name}', 'error', True)
+            return None
+    except Exception as e:
+        add_toast(session, f'Error deleting user with ID {user_id}: {str(e)}', 'error', True)
+        return None
+
 @rt('/user/save-privileges')
 def post(session, frm_data: dict):
     user = get_user(session)

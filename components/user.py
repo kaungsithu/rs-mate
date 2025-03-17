@@ -7,12 +7,35 @@ from fasthtml.common import CheckboxX as fhCheckboxX
 from components.common import *
 
 __all__ = [
-    'mk_user_link', 'mk_user_table', 'mk_user_props', 
+    'mk_delete_user_modal', 'mk_user_link', 'mk_user_table', 'mk_user_props', 
     'mk_user_groups', 'mk_user_roles', 'mk_user_privileges',
     'mk_user_schema_content', 'get_user_schema_content', 'mk_user_schema_nav', 'mk_user_form'
 ]
 
 # ===== User list table =====
+
+def mk_delete_user_modal(user_id: int, user_name: str):
+    """Create a delete confirmation modal for a user"""
+    delete_btn_id = f'delete-btn-{user_id}'
+    return Modal(
+        ModalHeader(H3(f"Delete User: {user_name}")),
+        ModalBody(
+            P(f"Are you sure you want to delete user {user_name}?", cls=TextPresets.muted_lg),
+            DivFullySpaced(
+                Button("Cancel", cls=ButtonT.ghost, data_uk_toggle=f"target: #delete-user-modal-{user_id}"),
+                DivLAligned(
+                    Button("Delete", id=delete_btn_id, cls=ButtonT.destructive, 
+                           hx_delete=f'/user/{user_id}',
+                           hx_target=f'#user-row-{user_id}',
+                           hx_swap='outerHTML',
+                           hx_disabled_elt=f'#{delete_btn_id}',
+                           data_uk_toggle=f"target: #delete-user-modal-{user_id}"),
+                    Loading((LoadingT.bars, LoadingT.sm, 'ml-2'), htmx_indicator=True)
+                )
+            )
+        ),
+        id=f'delete-user-modal-{user_id}'
+    )
 
 def mk_user_link(user: RedshiftUser):
     if user.user_id > 100: 
@@ -43,10 +66,18 @@ def mk_user_table(users: RedshiftUser=None):
                     hx_trigger='revealed',
                     cls='Roles',
                 ),
+                Td(
+                    (Button(UkIcon('trash-2'), cls=(ButtonT.destructive, ButtonT.xs), 
+                           data_uk_toggle=f"target: #delete-user-modal-{user.user_id}") if user.user_id > 100 else '-'),
+                    # Add delete confirmation modal if user can be deleted
+                    (mk_delete_user_modal(user.user_id, user.user_name) if user.user_id > 100 else ''),
+                    cls='Actions'
+                ),
+                id=f'user-row-{user.user_id}'
             )
         )
 
-    tbl_headers = ['ID', 'Username', 'Super', 'Groups', 'Roles']
+    tbl_headers = ['ID', 'Username', 'Super', 'Groups', 'Roles', 'Actions']
     tbl = Table(Thead(Tr(*map(Th, tbl_headers))), Tbody(*rows, cls='list'), 
                 cls=(TableT.striped))
     card_header=(H4('Redshift Users'), Subtitle('Click on each username to manage user details'))
