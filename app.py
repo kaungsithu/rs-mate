@@ -68,7 +68,8 @@ def mk_nav_bar(session, **kw):
                hx_get='/users', hx_target='#content-area',
                cls=btn_users_cls),
         Button(UkIcon('user-cog'), Nbsp(), 'Roles', hx_get='/roles', cls=btn_roles_cls),
-        Button(UkIcon('arrow-left-right'), Nbsp(), 'Switch Database', hx_get='/'),
+        Button(UkIcon('arrow-left-right'), Nbsp(), 'Switch Database', 
+               hx_get='/', hx_target='body'),
         brand=mk_brand(),
     ), id='nav-bar', **kw)
 
@@ -240,6 +241,7 @@ def mk_user_props(session, user:RedshiftUser):
             )
     return fill_form(user_props_frm, user)
 
+# ===== User Groups =====
 
 @rt('/all-groups')
 def get(session):
@@ -326,6 +328,94 @@ def mk_user_groups(session, user:RedshiftUser):
             )
     return fill_form(user_groups_frm, user)
 
+# ===== User Roles =====
+
+@rt('/all-roles')
+def get(session):
+    return RedshiftUser.get_all_roles(session)
+
+@rt('/user/add-role')
+def post(session, frm_data:dict):
+    user = RedshiftUser('', -1, False)
+    user.update_fields(frm_data)
+    user.roles = session.get('cur_user_roles')
+    # TODO: role_select returning a list with two values. 1st always 1st option, 2nd is selected val.
+    role_name = frm_data['role_select'][1] if frm_data['role_select'] else None
+    if role_name and role_name not in user.roles:
+        user.roles.append(role_name)
+    return mk_user_roles(session, user)
+
+@rt('/user/remove-role')
+def post(session, frm_data:dict):
+    user = RedshiftUser('', -1, False)
+    user.update_fields(frm_data)
+    user.roles = session.get('cur_user_roles')
+    roles =  list(filter(lambda g: g in frm_data.keys(), user.roles))
+    role_name = roles[0] if roles else None
+    if role_name:
+        user.roles.remove(role_name)
+    return mk_user_roles(session, user)
+
+@rt('/user/save-roles')
+def post(session, user:RedshiftUser):
+    user.roles = session.get('cur_user_roles')
+
+    if user.save_roles(session):
+        session_store_obj(session, f'user-{user.user_id}', user)
+        add_toast(session, 'User roles saved successfully!', 'success', True)
+    else:
+        add_toast(session, 'Error saving user roles!', 'error', True)
+
+    return mk_user_roles(session, user)
+
+def mk_role_list(roles:list):
+    return Ul(*[Li(
+                    DivHStacked(
+                        UkIconLink('trash-2', button=True, cls=ButtonT.destructive, 
+                                   id=f'btn-remove-{role}', name=role,
+                                   hx_post='/user/remove-role',
+                                   hx_target='#user-roles'
+                                   ), 
+                        Strong(role)
+                    )) for role in roles], cls=ListT.bullet, id='role-list')
+
+def mk_role_options(roles:list): 
+    return [Option(role, value=role) for role in roles]
+
+def mk_user_roles(session, user:RedshiftUser):
+    all_roles = RedshiftUser.get_all_roles(session)
+    session['cur_user_roles'] = user.roles
+    user_roles_frm = Div(
+                DivHStacked(H4('Roles', cls='mb-4'), Loading(htmx_indicator=True)),
+                Form(
+                    Hidden(id='user_id', value=user.user_id), Hidden(id='user_name', value=user.user_name),
+                    Hidden(id='super_user', value=user.super_user),
+                    Grid(
+                        DivFullySpaced(   
+                            Select(*mk_role_options(all_roles), placeholder='Select Role',
+                                   id='role_select', name='role_select', searchable=True, cls='w-full'),
+                            Button('Add', id='btn-add-role', 
+                                    hx_post='/user/add-role',
+                                    hx_target='#user-roles'
+                            ), cls='space-x-4'
+                        ),
+                        mk_role_list(user.roles),
+                    ),
+                    Button('Save Roles', id='btn-save-roles', cls=ButtonT.primary),
+                    Loading(htmx_indicator=True, cls='mx-4'),
+                    
+                    cls='space-y-6',
+                    hx_post='/user/save-roles',
+                    hx_target="#user-roles",
+                    hx_disabled_elt='#btn-save-roles, #btn-add-role, #btn-role-remove'
+                )
+            )
+    return fill_form(user_roles_frm, user)
+
+
+
+
+# ===== Main user detail =====
 def mk_user_form(session, user):
     ufrm = Card(
                 CardHeader(
@@ -341,8 +431,14 @@ def mk_user_form(session, user):
                 ),
                 CardBody(
                     Div(mk_user_props(session, user), id='user-props'),
-                    DividerSplit(cls='mt-4 mb-4'),
+                    DividerSplit(cls='my-4'),
+
                     Div(mk_user_groups(session, user), id='user-groups'),
+                    DividerSplit(cls='my-4'),
+
+                    Div(mk_user_roles(session, user), id='user-roles'),
+
+
                 )
         )
 

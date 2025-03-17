@@ -269,6 +269,8 @@ class RedshiftUser:
             print(f"error updating redshift user: {e}")
             return False
 
+# ===== User Groups ===== 
+
     @staticmethod
     def get_all_groups(session):
         try:
@@ -301,6 +303,9 @@ class RedshiftUser:
         try:
             ori_groups = RedshiftUser.get_user_groups(self.user_id, session)
             queries = RedshiftUser.get_save_groups_sql(self.user_name, ori_groups, self.groups)
+            
+            if not queries: return True 
+
             results = []
             for query in queries:
                 result = redshift.execute_query(query, session, fetch=False)
@@ -310,4 +315,51 @@ class RedshiftUser:
             return True if results and len(results) == 1 and results[0] == -1 else False
         except Exception as e:
             print(f"error updating redshift user groups: {e}")
+            return False
+
+# ===== User Roles =====
+    @staticmethod
+    def get_all_roles(session):
+        try:
+            results = redshift.execute_query(sql.GET_ALL_ROLES, session)
+            return [role[0] for role in results] if results else []
+        except Exception as e:
+            print(e)
+            return []
+
+    @staticmethod
+    def get_save_roles_sql(user_name:str, ori_roles:list, upd_roles:list):
+        changes = []
+        if ori_roles != upd_roles:
+            ori_role_set = set(ori_roles)
+            upd_role_set = set(upd_roles)
+
+            added_roles = upd_role_set - ori_role_set
+            removed_roles = ori_role_set - upd_role_set
+
+            for role in added_roles:
+                changes.append(f'GRANT ROLE {role} TO {user_name};')
+            for role in removed_roles:
+                changes.append(f'REVOKE ROLE {role} FROM {user_name};')
+
+            if not changes:
+                return ''  # No changes detected
+            return changes
+        
+    def save_roles(self, session):
+        try:
+            ori_roles = RedshiftUser.get_user_roles(self.user_id, session)
+            queries = RedshiftUser.get_save_roles_sql(self.user_name, ori_roles, self.roles)
+            
+            if not queries: return True
+
+            results = []
+            for query in queries:
+                result = redshift.execute_query(query, session, fetch=False)
+                results.append(result)
+            
+            results = list(set(results))
+            return True if results and len(results) == 1 and results[0] == -1 else False
+        except Exception as e:
+            print(f"error updating redshift user roles: {e}")
             return False
