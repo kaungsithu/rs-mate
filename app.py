@@ -240,44 +240,91 @@ def mk_user_props(session, user:RedshiftUser):
             )
     return fill_form(user_props_frm, user)
 
+
+@rt('/all-groups')
+def get(session):
+    return RedshiftUser.get_all_groups(session)
+
+@rt('/user/add-group')
+def post(session, frm_data:dict):
+    user = RedshiftUser('', -1, False)
+    user.update_fields(frm_data)
+    user.groups = session.get('cur_user_groups')
+    # TODO: group_select returning a list with two values. 1st always 1st option, 2nd is selected val.
+    group_name = frm_data['group_select'][1] if frm_data['group_select'] else None
+    if group_name and group_name not in user.groups:
+        user.groups.append(group_name)
+    return mk_user_groups(session, user)
+
+@rt('/user/remove-group')
+def post(session, frm_data:dict):
+    user = RedshiftUser('', -1, False)
+    user.update_fields(frm_data)
+    user.groups = session.get('cur_user_groups')
+    groups =  list(filter(lambda g: g in frm_data.keys(), user.groups))
+    group_name = groups[0] if groups else None
+    if group_name:
+        user.groups.remove(group_name)
+    return mk_user_groups(session, user)
+
+@rt('/user/save-groups')
+def post(session, user:RedshiftUser):
+    # user = RedshiftUser('', -1, False)
+    # user.update_fields(frm_data)
+
+    user.groups = session.get('cur_user_groups')
+
+    if user.save_groups(session):
+        session_store_obj(session, f'user-{user.user_id}', user)
+        add_toast(session, 'User groups saved successfully!', 'success', True)
+    else:
+        add_toast(session, 'Error saving user groups!', 'error', True)
+
+    return mk_user_groups(session, user)
+
+def mk_group_list(groups:list):
+    return Ul(*[Li(
+                    DivHStacked(
+                        UkIconLink('trash-2', button=True, cls=ButtonT.destructive, 
+                                   id=f'btn-remove-{group}', name=group,
+                                   hx_post='/user/remove-group',
+                                   hx_target='#user-groups'
+                                   ), 
+                        Strong(group)
+                    )) for group in groups], cls=ListT.bullet, id='group-list')
+
+def mk_group_options(groups:list): 
+    return [Option(group, value=group) for group in groups]
+
 def mk_user_groups(session, user:RedshiftUser):
+    all_groups = RedshiftUser.get_all_groups(session)
+    session['cur_user_groups'] = user.groups
     user_groups_frm = Div(
-                H4('Groups', cls='mb-4'),
+                DivHStacked(H4('Groups', cls='mb-4'), Loading(htmx_indicator=True)),
                 Form(
                     Hidden(id='user_id', value=user.user_id), Hidden(id='user_name', value=user.user_name),
-                    
+                    Hidden(id='super_user', value=user.super_user),
                     Grid(
-                        fhCheckboxX(id='super_user', label='Super User', cls='uk-checkbox'),
-                        fhCheckboxX(id='can_create_db', label='Create DB', cls='uk-checkbox'),
-                        # fhCheckboxX(id='can_update_catalog', label='Update Catalog', 
-                        #             cls=('uk-checkbox', LabelT.secondary), disabled='', hidden=''),
-                        cols=3 
+                        DivFullySpaced(   
+                            Select(*mk_group_options(all_groups), placeholder='Select Group',
+                                   id='group_select', name='group_select', searchable=True, cls='w-full'),
+                            Button('Add', id='btn-add-group', 
+                                    hx_post='/user/add-group',
+                                    hx_target='#user-groups'
+                            ), cls='space-x-4'
+                        ),
+                        mk_group_list(user.groups),
                     ),
-                    Grid(
-                        FormSectionDiv(LabelInput('Connection Limit', type='number', id='connection_limit'),
-                                        HelpText('0 for unlimited')),
-                        FormSectionDiv(LabelInput('Session Timeout', type='number', 
-                                                   min=60, max='1728000', id='session_timeout'),
-                                       HelpText('Seconds - 60 to 1728000 (20 days)')), 
-                        FormSectionDiv(LabelSelect(
-                                Option('RESTRICTED', value='RESTRICTED', selected=(user.syslog_access == 'RESTRICTED')), 
-                                Option('UNRESTRICTED', value='UNRESTRICTED', selected=(user.syslog_access == 'UNRESTRICTED')),
-                                label='System Log Access', id='syslog_access'),
-                                HelpText('UNRESTRICTED: View all logs, RESTRICTED: Only own logs')),
-                        FormSectionDiv(LabelInput('Password Expiry', type='date', id='password_expiry'),
-                                        HelpText('Password expires on 00:00 hours of selected date')),
-                    ),
-                    Button('Save User Properties', id='btn-props', cls=ButtonT.primary),
+                    Button('Save Groups', id='btn-save-groups', cls=ButtonT.primary),
                     Loading(htmx_indicator=True, cls='mx-4'),
                     
                     cls='space-y-6',
                     hx_post='/user/save-groups',
                     hx_target="#user-groups",
-                    hx_disabled_elt='#btn-groups'
+                    hx_disabled_elt='#btn-save-groups, #btn-add-group, #btn-group-remove'
                 )
             )
     return fill_form(user_groups_frm, user)
-
 
 def mk_user_form(session, user):
     ufrm = Card(
@@ -308,15 +355,17 @@ def get(session, user_id:int):
     try:
         if f'user-{user_id}' in session:
             user = session_get_obj(session, f'user-{user_id}', RedshiftUser)
-            if user.syslog_access is None:
-                svv_user_info = RedshiftUser.get_svv_user_info(user_id, session)
-                user.update_fields(svv_user_info)
-                session_store_obj(session, f'user-{user_id}', user)
+            if user.syslog_access is None or not user.groups or not user.roles:
+                user = RedshiftUser.get_user(user_id, session)
+                session_store_obj(session, f'user-{user_id}', user)      
+                return mk_user_form(session, user)
         else:
-            user = RedshiftUser.get_user(user_id, session)
-            session_store_obj(session, f'user-{user_id}', user)      
+            add_toast(session, f'User with ID: {user_id} not found', 'error', True)
+            return mk_user_table(session)
     except Exception as e:
         add_toast(session, f'Error retrieving user with ID: {user_id}', 'error', True)
+        return mk_user_table(session)
+
 
     return mk_user_form(session, user)
 
@@ -336,21 +385,6 @@ def post(session, user:RedshiftUser):
 
     return mk_user_props(session, user)
 
-@rt('/user/save-groups')
-def post(session, user:RedshiftUser):
-    # try:
-    #     ori_user = session_get_obj(session, f'user-{user.user_id}', RedshiftUser)
-    # except:
-    #     add_toast(session, f'Error updating user with ID: {user.user_id}', 'error', True)
-    #     return mk_user_props(session, user)
-    
-    # if user.update(ori_user, session):
-    #     session_store_obj(session, f'user-{user.user_id}', user)
-    #     add_toast(session, 'User properties saved successfully!', 'success', True)
-    # else:
-    add_toast(session, 'two submit btn works', 'success', True)
-
-    return mk_user_groups(session, user)
 
 
 if __name__ == '__main__':

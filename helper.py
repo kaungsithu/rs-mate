@@ -2,6 +2,8 @@ import json
 from dataclasses import asdict
 from typing import Any
 
+# TODO: Not to bring in session here, but to take only what is needed.
+# TODO: Groups and roles update might be overwriting each other values.
 def session_store_obj(session: dict, key: str, obj: Any) -> None:
     """
     Stores a object in the session.
@@ -12,7 +14,8 @@ def session_store_obj(session: dict, key: str, obj: Any) -> None:
         obj: The object to store (must be JSON-serializable).
     """
     try:
-        session[key] = json.dumps(asdict(obj))
+        data = asdict(obj)
+        session[key] = json.dumps(data)
     except TypeError:
         print(f"Error: Object with key '{key}' is not JSON serializable.")
         # Optionally, you might want to raise the exception or handle it differently.
@@ -30,6 +33,7 @@ def session_get_obj(session: dict, key: str, cls: Any) -> Any:
         The retrieved object, or the default value.
     """
     try:
-        return cls(**json.loads(session.get(key)))
+        data = json.loads(session.get(key))
+        return cls(**data)
     except (json.JSONDecodeError, TypeError):
         return None

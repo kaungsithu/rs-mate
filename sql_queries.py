@@ -61,8 +61,8 @@ GET_SVV_USER_INFO = """
 
 GET_USER_INFO = """
                     SELECT 
-                        usesysid                        AS user_id,
                         usename                         AS user_name, 
+                        usesysid                        AS user_id,
                         usesuper                        AS super_user, 
                         usecreatedb                     AS can_create_db, 
                         usecatupd                       AS can_update_catalog,

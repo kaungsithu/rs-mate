@@ -246,9 +246,9 @@ class RedshiftUser:
         #         changes.append(f"REMOVE ROLE {role}")
 
         if not changes:
-            return ""  # No changes detected
+            return ''  # No changes detected
 
-        return alter_statement + " " + " ".join(changes) + ";"
+        return alter_statement + ' ' + ' '.join(changes) + ';'
 
 
     def update(self, ori_user, session):
@@ -277,3 +277,37 @@ class RedshiftUser:
         except Exception as e:
             print(e)
             return []
+
+    @staticmethod
+    def get_save_groups_sql(user_name:str, ori_groups:list, upd_groups:list):
+        changes = []
+        if ori_groups != upd_groups:
+            ori_group_set = set(ori_groups)
+            upd_group_set = set(upd_groups)
+
+            added_groups = upd_group_set - ori_group_set
+            removed_groups = ori_group_set - upd_group_set
+
+            for group in added_groups:
+                changes.append(f'ALTER GROUP {group} ADD USER {user_name};')
+            for group in removed_groups:
+                changes.append(f'ALTER GROUP {group} DROP USER {user_name};')
+
+            if not changes:
+                return ''  # No changes detected
+            return changes
+        
+    def save_groups(self, session):
+        try:
+            ori_groups = RedshiftUser.get_user_groups(self.user_id, session)
+            queries = RedshiftUser.get_save_groups_sql(self.user_name, ori_groups, self.groups)
+            results = []
+            for query in queries:
+                result = redshift.execute_query(query, session, fetch=False)
+                results.append(result)
+            
+            results = list(set(results))
+            return True if results and len(results) == 1 and results[0] == -1 else False
+        except Exception as e:
+            print(f"error updating redshift user groups: {e}")
+            return False
