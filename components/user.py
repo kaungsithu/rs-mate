@@ -43,13 +43,58 @@ def mk_user_table(users: RedshiftUser=None):
     card_header=(H4('Redshift Users'), Subtitle('Click on each username to manage user details'))
     ctrls = DivFullySpaced(
                 Div(Input(cls='w-sm search', placeholder='Filter users...')),
-                Button(UkIcon('plus'), 'Add User', cls=ButtonT.primary)
+                Button(UkIcon('plus'), 'Add User', 
+                       cls=ButtonT.primary,
+                       data_uk_toggle="target: #new-user-modal")
     )
 
-    card = Card(ctrls, tbl, header=card_header, id='users-table', cls='mt-4 w-full lg:w-4/5')
+    # Create new user modal
+    new_user_modal = Modal(
+        ModalHeader(H3("Create New User")),
+        ModalBody(
+            Form(
+                Grid(
+                    FormSectionDiv(
+                        LabelInput('Username', id='user_name', required=True),
+                        HelpText('Redshift username (required)')
+                    ),
+                    FormSectionDiv(
+                        LabelInput('Password', id='password', type='password', required=True),
+                        HelpText('User password (required)')
+                    ),
+                ),
+                # H4('Basic Properties', cls='mt-6 mb-4'),
+                Grid(
+                    fhCheckboxX(id='super_user', label='Super User', cls='uk-checkbox'),
+                    fhCheckboxX(id='can_create_db', label='Create DB', cls='uk-checkbox'),
+                    cols=3
+                ),
+                DividerSplit(cls='my-4'),
+                # Alert(
+                #     DivLAligned(
+                #         UkIcon('info'),
+                #         P('Creating a user will execute SQL commands in your Redshift cluster. You can configure additional properties after creation.')
+                #     ),
+                #     cls=AlertT.info
+                # ),
+                DivFullySpaced(
+                    ModalCloseButton("Cancel", cls=ButtonT.default),
+                    Button('Create User', id='btn-create-user', cls=ButtonT.primary),
+                    Loading((LoadingT.bars, LoadingT.lg, 'mx-4'), htmx_indicator=True),
+                ),
+                cls='space-y-6',
+                hx_post='/user/create',
+                hx_target="#app-area",
+                hx_disabled_elt='#btn-create-user'
+            )
+        ),
+        id='new-user-modal'
+    )
+
+    card = Card(ctrls, tbl, header=card_header, id='users-table', cls='mt-4')
     list_script = Script(f"new List('users-table', {{ valueNames: {json.dumps(tbl_headers)} }})")
 
-    return card, list_script
+    return DivVStacked(card, list_script, new_user_modal, cls='w-full lg:w-4/5')
 
 # ===== User Management =====
 

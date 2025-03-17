@@ -140,6 +140,35 @@ def get(session, user_id: int):
         add_toast(session, f'Error retrieving user with ID: {user_id}', 'error', True)
         return RedirectResponse('/users')
 
+@rt('/user/create')
+def post(session, frm_data: dict):
+    user_name = frm_data.get('user_name')
+    password = frm_data.get('password')
+    super_user = frm_data.get('super_user') == 'on'
+    can_create_db = frm_data.get('can_create_db') == 'on'
+    
+    # Create the user in Redshift
+    rs = get_rs(session)
+    try:
+        user = RedshiftUser.create_user(
+            user_name=user_name,
+            password=password,
+            super_user=super_user,
+            can_create_db=can_create_db,
+            rs=rs
+        )
+        
+        if user:
+            add_toast(session, f'User {user_name} created successfully!', 'success', True)
+            # Redirect to the user detail page for further configuration
+            return RedirectResponse(url=f'/user/{user.user_id}', status_code=303)
+        else:
+            add_toast(session, f'Error creating user {user_name}!', 'error', True)
+            return RedirectResponse(url='/users', status_code=303)
+    except Exception as e:
+        add_toast(session, f'Error creating user: {str(e)}', 'error', True)
+        return RedirectResponse(url='/users', status_code=303)
+
 @rt('/user/save-props')
 def post(session, user: RedshiftUser):
     if user.update(get_rs(session)):

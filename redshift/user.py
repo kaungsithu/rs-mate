@@ -48,6 +48,68 @@ class RedshiftUser:
             print(e)
             return []
 
+    @classmethod
+    def create_user(cls, user_name, password, super_user=False, can_create_db=False, 
+                   connection_limit=0, session_timeout=3600, syslog_access='RESTRICTED', 
+                   password_expiry=None, rs=None):
+        """Create a new user in Redshift"""
+        try:
+            # Build the CREATE USER SQL statement
+            create_sql = f"CREATE USER {user_name} PASSWORD '{password}'"
+            
+            # Add user properties
+            if super_user:
+                create_sql += " CREATEUSER"
+            else:
+                create_sql += " NOCREATEUSER"
+                
+            if can_create_db:
+                create_sql += " CREATEDB"
+            else:
+                create_sql += " NOCREATEDB"
+                
+            if connection_limit is not None and connection_limit > 0:
+                create_sql += f" CONNECTION LIMIT {connection_limit}"
+                
+            if session_timeout is not None and session_timeout > 0:
+                create_sql += f" SESSION TIMEOUT {session_timeout}"
+                
+            if syslog_access:
+                create_sql += f" SYSLOG ACCESS {syslog_access}"
+                
+            if password_expiry:
+                create_sql += f" VALID UNTIL '{password_expiry}'"
+                
+            create_sql += ";"
+            
+            # Execute the SQL command
+            success = rs.execute_cmd(create_sql)
+            
+            if success:
+                # Get the newly created user
+                # We need to query to get the user_id
+                query = f"SELECT usesysid, usename, usesuper, usecreatedb, usecatupd, valuntil, useconfig, CONNECTION_LIMIT FROM pg_user_info WHERE usename = '{user_name}';"
+                results = rs.execute_query(query)
+                
+                if results and len(results) > 0:
+                    cols = ['user_id', 'user_name', 'super_user', 'can_create_db',
+                            'can_update_catalog', 'password_expiry', 
+                            'session_defaults', 'connection_limit']
+                    
+                    user = cls(**dict(zip(cols, results[0])))
+                    user.syslog_access = syslog_access
+                    user.session_timeout = session_timeout
+                    user.last_ddl_time = None
+                    user.groups = []
+                    user.roles = []
+                    
+                    return user
+            
+            return None
+        except Exception as e:
+            print(f"Error creating Redshift user: {e}")
+            return None
+
     @staticmethod
     def get_user_groups(user_id, rs: Redshift):
         'Get all groups a user belongs to.'
