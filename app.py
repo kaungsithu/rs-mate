@@ -18,28 +18,22 @@ def FormLayout(title, subtitle, *content, cls='space-y-3 mt-4'): return Containe
 
 
 def mk_db_frm(db_info=None):
-    db_frm = (
-                FormSectionDiv(
-                    LabelInput('Host', id='host', placeholder='Database Host')
-                ),
-                FormSectionDiv(
-                    LabelInput('Port', id='port', placeholder='Database Port', )
-                ),
-                FormSectionDiv(
-                    LabelInput('Database', id='name', placeholder='Database Name')
-                ),
-                FormSectionDiv(
-                    LabelInput('Username', id='user', placeholder='Username')
-                ),
-                FormSectionDiv(
-                    LabelInput('Password', id='pwd', type='password', placeholder='Password')
-                ),
-                FormSectionDiv(
+    db_frm = DivCentered(Container(Div(
+        H3('Connect Redshift'),
+        Subtitle('Enter the Redshift connection details'),
+        DividerLine(),
+        Form(
+                    LabelInput('Host', id='host', placeholder='Database Host'),
+                    LabelInput('Port', id='port', placeholder='Database Port'),
+                    LabelInput('Database', id='name', placeholder='Database Name'),
+                    LabelInput('Username', id='user', placeholder='Username'),
+                    LabelInput('Password', id='pwd', type='password', placeholder='Password'),
                     Button('Connect', cls=(ButtonT.primary, 'w-full')),
-                    hx_post='/', target_id='app-area'
-                )
+                    hx_post='/', target_id='app-area',
+                ), cls=ContainerT.lg
+    ), cls='space-y-3'
     )
-
+    )
 
     
     if not db_info:
@@ -50,7 +44,7 @@ def mk_db_frm(db_info=None):
     fill_form(db_frm, db_info)
     
     # return Card(db_frm, header=H3('Redshift Connection Info'), footer=PicoBusy())
-    return FormLayout('Connect to Redshift', 'Enter Redshift Connection Details.', *db_frm)
+    return db_frm
 
 # Home, DB info form
 @rt('/')
