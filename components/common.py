@@ -45,8 +45,11 @@ def BadgeList(labels: list):
      return Span(*[Span(l, cls=(TextT.sm, 'uk-badge', 'm-1')) for l in labels])
 
 # Options for select with same label and value
-def SelectOptions(items: list):
-    return [Option(item, value=item) for item in items]
+def SelectOptions(items: list, vals: list=None):
+    if vals:
+        return [Option(item, value=val) for item, val in zip(items, vals)]
+    else:
+        return [Option(item, value=item) for item in items]
 
 # Removable list 
 def RemovableList(items: list, id: str, hx_post: str, hx_target: str):

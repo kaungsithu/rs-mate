@@ -1,4 +1,6 @@
 from fasthtml.common import *
+from fasthtml.common import CheckboxX as fhCheckboxX
+from requests import session
 from redshift.database import Redshift
 from redshift.user import RedshiftUser
 from redshift.role import RedshiftRole
@@ -203,12 +205,36 @@ def get(session, role_name: str):
         all_roles = RedshiftRole.get_all(rs)
         
         # Get all schemas
-        schemas_result = rs.execute_query(sql.GET_ALL_SCHEMAS)
-        schemas = [row[0] for row in schemas_result] if schemas_result else []
+        schemas = rs.get_all_schemas()
+        session['schemas'] = schemas
+        
+        # Fetch all relations for all schemas
+        schema_relations = {}
+        for schema in schemas:
+            schema_relations[schema] = {
+                'tables': [],
+                'views': [],
+                'functions': [],
+                'procedures': []
+            }
+            
+            # Get tables for the schema
+            schema_relations[schema]['tables'] = rs.get_schema_tables(schema)
+            
+            # Get views for the schema
+            schema_relations[schema]['views'] = rs.get_schema_views(schema)
+            
+            # Get functions for the schema
+            schema_relations[schema]['functions'] = rs.get_schema_functions(schema)
+
+            # Get procedures for the schema
+            schema_relations[schema]['procedures'] = rs.get_schema_procedures(schema)
         
         if role:
             set_role(session, role)
-            return MainLayout(mk_role_form(role, all_roles, schemas), active_btn='roles')
+            # Store schema relations in session
+            session['schema_relations'] = schema_relations
+            return MainLayout(mk_role_form(role, all_roles, schemas, schema_relations), active_btn='roles')
         else:
             add_toast(session, f'Role with name: {role_name} not found', 'error', True)
             return RedirectResponse('/roles')
@@ -299,6 +325,103 @@ def post(session, role: RedshiftRole):
     return None
 
 # ===== Role Privileges =====
+@rt('/role/get-schema-tables/{schema_name}')
+def get(session, schema_name: str):
+    rs = get_rs(session)
+    
+    # Get tables for the schema
+    tables_result = rs.execute_query(sql.GET_SCHEMA_TABLES, (schema_name,))
+    tables = [row[0] for row in tables_result] if tables_result else []
+    
+    # Return options for select
+    options = SelectOptions(tables)
+    return ''.join([str(option) for option in options])
+
+@rt('/role/get-schema-views/{schema_name}')
+def get(session, schema_name: str):
+    rs = get_rs(session)
+    
+    # Get views for the schema
+    views_result = rs.execute_query(sql.GET_SCHEMA_VIEWS, (schema_name,))
+    views = [row[0] for row in views_result] if views_result else []
+    
+    # Return options for select
+    options = SelectOptions(views)
+    return ''.join([str(option) for option in options])
+
+@rt('/role/get-schema-functions/{schema_name}')
+def get(session, schema_name: str, frm_data: dict):
+    rs = get_rs(session)
+    func_type = frm_data.get('new-func-type-' + schema_name)
+    
+    if func_type == 'FUNCTION':
+        # Get functions for the schema
+        funcs_result = rs.execute_query(sql.GET_SCHEMA_FUNCTIONS, (schema_name,))
+        funcs = [row[0] for row in funcs_result] if funcs_result else []
+    else:
+        # Get procedures for the schema
+        funcs_result = rs.execute_query(sql.GET_SCHEMA_PROCEDURES, (schema_name,))
+        funcs = [row[0] for row in funcs_result] if funcs_result else []
+    
+    # Return options for select
+    options = SelectOptions(funcs)
+    return ''.join([str(option) for option in options])
+
+
+@rt('/role/load-table/{schema_name}')
+def post(schema_name: str, frm_data: dict):
+    # Get table name from form data
+    table_name = frm_data.get('new-table-' + schema_name)
+    table_name = table_name[1] if isinstance(table_name, list) else table_name
+    if not table_name:
+        return None
+    
+    # Create privilege checkboxes for the table
+    # TODO: Table added even if the table is existing. To check if the table exists before adding.
+    return Tr(
+                Td(table_name),
+                Td(fhCheckboxX(id=f'priv-{schema_name}-{table_name}-SELECT', cls='uk-checkbox')),
+                Td(fhCheckboxX(id=f'priv-{schema_name}-{table_name}-INSERT', cls='uk-checkbox')),
+                Td(fhCheckboxX(id=f'priv-{schema_name}-{table_name}-UPDATE', cls='uk-checkbox')),
+                Td(fhCheckboxX(id=f'priv-{schema_name}-{table_name}-DELETE', cls='uk-checkbox')),
+            )
+
+@rt('/role/load-view/{schema_name}')
+def post(schema_name: str, frm_data: dict):
+    # Get view name from form data
+    view_name = frm_data.get('new-view-' + schema_name)
+    view_name = view_name[1] if isinstance(view_name, list) else view_name
+    if not view_name:
+        return None
+    
+    # Create privilege checkboxes for the view
+    # TODO: View added even if the table is existing. To check if the table exists before adding.
+    return Tr(
+                Td(view_name),
+                Td(fhCheckboxX(id=f'priv-{schema_name}-{view_name}-SELECT', cls='uk-checkbox')),
+                Td(fhCheckboxX(id=f'priv-{schema_name}-{view_name}-INSERT', cls='uk-checkbox')),
+                Td(fhCheckboxX(id=f'priv-{schema_name}-{view_name}-UPDATE', cls='uk-checkbox')),
+                Td(fhCheckboxX(id=f'priv-{schema_name}-{view_name}-DELETE', cls='uk-checkbox')),
+            )
+
+@rt('/role/load-function/{schema_name}')
+def get(schema_name: str, frm_data: dict):
+    # Get function, procedure name from form data
+    func = frm_data.get('new-func-' + schema_name)
+    func = func[1] if isinstance(func, list) else func
+    if not func:
+        return None
+    
+    # Create privilege checkboxes for the function
+    # TODO: Function added even if the function is existing. To check if the function exists before adding.
+    func_type = func.split(':')[0]
+    func_name = func.split(':')[1]
+    return Tr(
+                Td(func_type),
+                Td(func_name),
+                Td(fhCheckboxX(id=f'priv-{schema_name}-{func_name}-EXECUTE', cls='uk-checkbox')),
+            )
+
 @rt('/role/save-privileges')
 def post(session, frm_data: dict):
     role = get_role(session)
@@ -307,7 +430,7 @@ def post(session, frm_data: dict):
     # Process form data to extract privileges
     privileges = []
     for key, value in frm_data.items():
-        if key.startswith('priv-') and value == 'on':
+        if key.startswith('priv-') and (isinstance(value, list) and '1' in value):
             # Format: priv-{schema}-{object}-{privilege}
             parts = key.split('-')
             if len(parts) == 4:
@@ -317,9 +440,18 @@ def post(session, frm_data: dict):
                 
                 # Determine object type based on privilege
                 if privilege_type == 'EXECUTE':
-                    object_type = 'FUNCTION'  # Could be FUNCTION or PROCEDURE
+                    # Check if it's a function or procedure
+                    # This is a simplification - in a real implementation, you'd need to check the actual type
+                    object_type = frm_data.get(f'new-func-type-{schema_name}', 'FUNCTION')
                 else:
-                    object_type = 'TABLE'  # Could be TABLE or VIEW
+                    # For SELECT, INSERT, UPDATE, DELETE - could be TABLE or VIEW
+                    # For simplicity, assume it's a TABLE if it has INSERT, UPDATE, or DELETE privileges
+                    if privilege_type in ['INSERT', 'UPDATE', 'DELETE']:
+                        object_type = 'TABLE'
+                    else:
+                        # For SELECT only, check if it's in the views list
+                        views = rs.get_schema_views(schema_name)
+                        object_type = 'VIEW' if object_name in views else 'TABLE'
                 
                 privileges.append({
                     'schema_name': schema_name,
@@ -328,8 +460,7 @@ def post(session, frm_data: dict):
                     'privilege_type': privilege_type
                 })
     
-    # TODO: Compare with existing privileges and update
-    # This is a simplified implementation
+    # Grant privileges
     success = True
     for privilege in privileges:
         if not role.grant_privilege(
@@ -342,11 +473,38 @@ def post(session, frm_data: dict):
             success = False
     
     if success:
+        # Refresh role privileges
+        updated_role = RedshiftRole.get_role(role.role_name, rs)
+        if updated_role:
+            set_role(session, updated_role)
         add_toast(session, 'Privileges saved successfully!', 'success', True)
     else:
         add_toast(session, 'Error saving some privileges!', 'warning', True)
     
     return None
+
+# ===== Role Schema Content =====
+@rt('/role/schema-nav/{schema_name}')
+def get(session, schema_name: str):
+    schemas = session.get('schemas', get_rs(session).get_all_schemas())
+    return mk_schema_nav(schemas, schema_name)
+
+@rt('/role/schema-content/{role_name}/{schema_name}')
+def get(session, role_name: str, schema_name: str):
+    try:
+        rs = get_rs(session)
+        role = RedshiftRole.get_role(role_name, rs)
+        schema_relations = session.get('schema_relations', {})
+        
+        if role and schema_name in schema_relations:
+            schemas = session.get('schemas', get_rs(session).get_all_schemas())
+            return get_schema_content(role, schema_name, schema_relations), mk_schema_nav(role_name, schemas, schema_name)
+        else:
+            return Div(P("Error: Schema not found or role not available"), cls='text-red-500')
+    except Exception as e:
+        return Div(P(f"Error loading schema content: {str(e)}"), cls='text-red-500')
+
+# ===== End Routes =====
 
 if __name__ == '__main__':
     try:

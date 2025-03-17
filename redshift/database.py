@@ -1,10 +1,12 @@
 from ast import Tuple
 from dataclasses import dataclass, asdict, field
 from cryptography.fernet import Fernet
+from nbclient import execute
 import redshift_connector
 import json
 import os
 from typing import Optional
+from .sql_queries import *
 
 # TODO: Add proper logging mechnism instead of prints
 
@@ -90,3 +92,23 @@ class Redshift:
     def test_conn(self) -> bool:
         'Test connection by selecting 1. Returns True if successful.'
         return self.execute_query('SELECT 1') is not None
+    
+    def get_all_schemas(self) -> list:
+        results = self.execute_query(GET_ALL_SCHEMAS)
+        return [row[0] for row in results] if results else []
+    
+    def get_schema_tables(self, schema: str) -> list:
+        results = self.execute_query(GET_SCHEMA_TABLES, (schema,))
+        return [row[0] for row in results] if results else []
+    
+    def get_schema_views(self, schema: str) -> list:
+        results = self.execute_query(GET_SCHEMA_VIEWS, (schema,))
+        return [row[0] for row in results] if results else []
+    
+    def get_schema_functions(self, schema: str) -> list:
+        results = self.execute_query(GET_SCHEMA_FUNCTIONS, (schema,))
+        return [row[0] for row in results] if results else []
+    
+    def get_schema_procedures(self, schema: str) -> list:
+        results = self.execute_query(GET_SCHEMA_PROCEDURES, (schema,))
+        return [row[0] for row in results] if results else []

@@ -140,6 +140,7 @@ GET_ROLE_PRIVILEGES = """
                     WHERE t.table_catalog = 'dev'
                       AND t.table_schema NOT LIKE 'pg_%' 
                       AND t.table_schema NOT LIKE 'information_schema'
+                      AND t.table_schema <> 'public'
                       AND t.table_type IN ('BASE TABLE', 'VIEW')
                       AND p.identity_type = 'role'
                       AND p.identity_name = %s
@@ -160,6 +161,7 @@ GET_ROLE_PRIVILEGES = """
                       AND f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION', 'STORED PROCEDURE')
                       AND f.schema_name NOT LIKE 'pg_%'
                       AND f.schema_name NOT LIKE 'information_schema'
+                      AND f.schema_name <> 'public'
                       AND identity_type = 'role'
                       AND identity_name = %s;
                 """
@@ -169,6 +171,7 @@ GET_ALL_SCHEMAS = """
                     FROM svv_all_schemas
                     WHERE schema_name NOT LIKE 'pg_%' 
                       AND schema_name NOT LIKE 'information_schema'
+                      AND schema_name <> 'public'
                       AND database_name = 'dev'
                     ORDER BY schema_name;
                 """

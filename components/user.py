@@ -14,7 +14,6 @@ def mk_user_link(user: RedshiftUser):
     else:
         return A(user.user_name, href='#', cls=TextT.muted)
 
-# TODO: Disable updating admin user
 def mk_user_table(users: RedshiftUser=None):
     if not users:
         return Div(H3('No users retrieved from Redshift.'), cls='mt-10 text-red-400')
