@@ -1,6 +1,5 @@
 from dataclasses import Field
 from fasthtml.common import *
-import monsterui
 from redshift import DBInfo, store_db_info, test_conn
 from user import RedshiftUser
 from pico_customs import css
@@ -13,19 +12,35 @@ hdrs = Theme.violet.headers(mode='light')
 app, rt = fast_app(hdrs=hdrs, debug=True, live=True)
 setup_toasts(app)
 
+def FormSectionDiv(*c, cls='space-y-2', **kwargs): return Div(*c, cls=cls, **kwargs)
+
+def FormLayout(title, subtitle, *content, cls='space-y-3 mt-4'): return Container(Div(H3(title), Subtitle(subtitle), DividerLine(), Form(*content, cls=cls)))
+
+
 def mk_db_frm(db_info=None):
-    db_frm = Card(Grid(
-                DivVStacked(
-                    LabelInput('Host', id='host', placeholder='Database Host'),
-                    LabelInput('Port', id='port', placeholder='Database Port', ),
-                    LabelInput('Database', id='name', placeholder='Database Name'),
-                    LabelInput('Username', id='user', placeholder='Username'),
+    db_frm = (
+                FormSectionDiv(
+                    LabelInput('Host', id='host', placeholder='Database Host')
+                ),
+                FormSectionDiv(
+                    LabelInput('Port', id='port', placeholder='Database Port', )
+                ),
+                FormSectionDiv(
+                    LabelInput('Database', id='name', placeholder='Database Name')
+                ),
+                FormSectionDiv(
+                    LabelInput('Username', id='user', placeholder='Username')
+                ),
+                FormSectionDiv(
                     LabelInput('Password', id='pwd', type='password', placeholder='Password')
                 ),
-            header=(H3('Connect to Redshift'), Subtitle('Enter Redshift Connection Details.')),
-            footer=Button('Connect', cls=(ButtonT.primary, 'w-full'))),
-            hx_post='/', target_id='app-area'
-        )
+                FormSectionDiv(
+                    Button('Connect', cls=(ButtonT.primary, 'w-full')),
+                    hx_post='/', target_id='app-area'
+                )
+    )
+
+
     
     if not db_info:
         db_info = DBInfo(host=None, port=5439, name='dev', user=None, pwd=None)
@@ -34,7 +49,8 @@ def mk_db_frm(db_info=None):
 
     fill_form(db_frm, db_info)
     
-    return Card(db_frm, header=H3('Redshift Connection Info'), footer=PicoBusy())
+    # return Card(db_frm, header=H3('Redshift Connection Info'), footer=PicoBusy())
+    return FormLayout('Connect to Redshift', 'Enter Redshift Connection Details.', *db_frm)
 
 # Home, DB info form
 @rt('/')
