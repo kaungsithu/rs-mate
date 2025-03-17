@@ -1,173 +1,110 @@
-import os
-import argparse
 from fasthtml.common import *
-from dataclasses import dataclass
+from redshift import DBInfo, store_db_info, test_conn
+from user import RedshiftUser
+from pico_customs import css
 
-app, rt = fast_app()
+app, rt = fast_app(hdrs=(picolink, css), debug=True)
+setup_toasts(app)
 
-from app import initialize_database
-from app.controllers import *
+def mk_db_frm(db_info=None):
+    db_frm = Form(
+            Input(id='host', placeholder='Database Host'),
+            Input(id='port', placeholder='Database Port', ),
+            Input(id='name', placeholder='Database Name'),
+            Input(id='user', placeholder='Username'),
+            Input(id='pwd', type='password', placeholder='Password'),
+            Button('Connect'),
+            hx_post='/', target_id='app-area'
+        )
+    
+    if not db_info:
+        db_info = DBInfo(host=None, port=5439, name='dev', user=None, pwd=None)
+    else:
+        db_info.pwd = None
 
-@dataclass
-class DatabaseConnection:
-    host: str
-    dbname: str
-    user: str
-    password: str
+    fill_form(db_frm, db_info)
+    
+    return Card(db_frm, header=H3('Redshift Connection Info'), footer=PicoBusy())
 
-# Home page route
-@rt('/old-home-page')
-def get():
-    return Div(
-        Title("PostgreSQL User and Group Management"),
-        picolink,
-        Div(
-            Div(
-                H1("PostgreSQL User and Group Management", cls="display-4"),
-                P("A simple application to manage PostgreSQL database users and groups.", cls="lead"),
-                Hr(cls="my-4"),
-                P("Use the navigation below to manage your PostgreSQL database entities."),
-                Div(
-                    Div(
-                        Div(
-                            H5("Users", cls="card-title"),
-                            P("Manage PostgreSQL database users and their privileges.", cls="card-text"),
-                            A("Manage Users", href="/users", cls="btn btn-primary")
-                        ),
-                        cls="card-body"
-                    ),
-                    cls="card col-md-6"
-                ),
-                Div(
-                    Div(
-                        Div(
-                            H5("Groups", cls="card-title"),
-                            P("Manage PostgreSQL database groups and their members.", cls="card-text"),
-                            A("Manage Groups", href="/groups", cls="btn btn-primary")
-                        ),
-                        cls="card-body"
-                    ),
-                    cls="card col-md-6"
-                ),
-                cls="row mt-4"
-            ),
-            cls="jumbotron"
-        ),
-        cls="container mt-5"
-    )
-
+# Home, DB info form
 @rt('/')
-def get():
-    return Div(
-        Title("Connect to PostgreSQL Database"),
-        Div(
-            Div(
-                H1("Connect to PostgreSQL Database", cls="display-4"),
-                P("Please enter the database connection details to continue.", cls="lead"),
-                Hr(cls="my-4"),
-                Form(
-                    Div(
-                        Label("Database Host", cls="form-label"),
-                        Input(type="text", name="host", cls="form-control", placeholder="localhost")
-                    ),
-                    Div(
-                        Label("Database Name", cls="form-label"),
-                        Input(type="text", name="dbname", cls="form-control", placeholder="postgres")
-                    ),
-                    Div(
-                        Label("Username", cls="form-label"),
-                        Input(type="text", name="user", cls="form-control", placeholder="postgres")
-                    ),
-                    Div(
-                        Label("Password", cls="form-label"),
-                        Input(type="password", name="password", cls="form-control")
-                    ),
-                    Div(
-                        Button("Connect", type="submit", cls="btn btn-primary")
-                    ),
-                    hx_post="/connect",
-                    hx_target="#result"
-                ),
-                Div(id="result"),
-                cls="jumbotron"
-            ),
-            cls="container mt-5"
-        )
+def get(session):
+    return Title('RS-Mate'), Container(
+        Div(mk_db_frm(), id='app-area')
     )
 
-@rt('/connect')
-def post(db_conn: DatabaseConnection):
-    # Initialize database
-    if not initialize_database(db_conn.dbname, db_conn.user, db_conn.password, db_conn.host, '5439'):
-        return Div(
-            Title("Connection Failed"),
-            H1("Failed to connect to database", cls="display-4"),
-            P("Please check the connection details and try again.", cls="lead"),
-            id="result",
-            cls="jumbotron container mt-5"
+def mk_btn_bar(active_btn:str=None, **kw):
+    btn_users_cls = btn_roles_cls = btn_perm_cls = 'outline contrast'
+    if active_btn == 'users': btn_users_cls = 'outline'
+    if active_btn == 'roles': btn_roles_cls = 'outline'
+    if active_btn == 'perm': btn_perm_cls = 'outline'
+
+    btn_bar = Div(
+                    Button('Manage Users', PicoBusy(), id='btn-users', hx_get='/users', hx_target='#content-area', cls=btn_users_cls),
+                    Nbsp(), Nbsp(),
+                    Button('Manage Roles', id='btn-roles', cls=btn_roles_cls),
+                    Nbsp(), Nbsp(),
+                    Button('Manage Permissions', id='btn-perm', cls=btn_perm_cls),
+                    id='btn-bar', **kw
+                )
+    return btn_bar
+
+# Connect to Redshift, show control buttons
+@rt('/')
+def post(session, db:DBInfo):
+    if not (db.host and db.port and db.name and db.user and db.pwd):
+        add_toast(session, 'All connection fields are required!', 'error')
+        return mk_db_frm(db)
+
+    if not test_conn(db):
+        add_toast(session, 'There was a problem connecting to Redshift!', 'error')
+        return mk_db_frm(db)
+    store_db_info(db, session)
+
+    return mk_btn_bar(), Div(None, id='content-area')
+
+@rt('/user-groups/{user_id}')
+def get(session, user_id:int):
+    groups = RedshiftUser.get_user_groups(user_id, session)
+    return ", ".join(groups) if groups else "-" 
+
+@rt('/user-roles/{user_id}')
+def get(session, user_id:int):
+    roles = RedshiftUser.get_user_roles(user_id, session)
+    return ", ".join(roles) if roles else "-" 
+
+def mk_user_table(session):
+    users = RedshiftUser.get_all(session)
+
+    if users is None or len(users) == 0:
+        return Div(H3('No users found in Redshift.'))
+
+    rows = []
+    for user in users:
+        rows.append(
+            Tr(Td(user.user_id), 
+               Td(A(user.user_name, hx_get=f'/users/{user.user_id}')),
+               Td("✅" if user.super_user else "-"),
+               Td(PicoBusy(), hx_get=f'/user-groups/{user.user_id}', hx_trigger='revealed'),
+               Td(PicoBusy(), hx_get=f'/user-roles/{user.user_id}', hx_trigger='revealed')
+            )
         )
+    headers = ['ID', 'Username', 'Super', 'Groups', 'Roles']
+    tbl = Table(
+                Thead(Tr(*map(Th, headers))),
+                Tbody(*rows),
+                title='Redshift Users',
+                cls='striped'
+            )
+    return Div(tbl)
 
-    # Redirect to the db-home page
-    return db_home()
 
-@rt('/db-home')
-def db_home():
-    return Div(
-        Title("PostgreSQL User and Group Management"),
-        picolink,
-        Div(
-            Div(
-                H1("PostgreSQL User and Group Management", cls="display-4"),
-                P("A simple application to manage PostgreSQL database users and groups.", cls="lead"),
-                Hr(cls="my-4"),
-                P("Use the navigation below to manage your PostgreSQL database entities."),
-                Div(
-                    Div(
-                        Div(
-                            H5("Users", cls="card-title"),
-                            P("Manage PostgreSQL database users and their privileges.", cls="card-text"),
-                            A("Manage Users", href="/users", cls="btn btn-primary")
-                        ),
-                        cls="card-body"
-                    ),
-                    cls="card col-md-6"
-                ),
-                Div(
-                    Div(
-                        Div(
-                            H5("Groups", cls="card-title"),
-                            P("Manage PostgreSQL database groups and their members.", cls="card-text"),
-                            A("Manage Groups", href="/groups", cls="btn btn-primary")
-                        ),
-                        cls="card-body"
-                    ),
-                    cls="card col-md-6"
-                ),
-                cls="row mt-4"
-            ),
-            cls="jumbotron"
-        ),
-        cls="container mt-5"
-    )
+@rt('/users')
+def get(session):
+    return mk_user_table(session), mk_btn_bar('users', hx_swap_oob='true')
 
-def main():
-    # parser = argparse.ArgumentParser(description='PostgreSQL User and Group Management App')
-    # parser.add_argument('--dbname', type=str, required=True, help='PostgreSQL database name')
-    # parser.add_argument('--user', type=str, required=True, help='PostgreSQL username (requires superuser privileges)')
-    # parser.add_argument('--password', type=str, required=True, help='PostgreSQL password')
-    # parser.add_argument('--host', type=str, default='0.0.0.0', help='PostgreSQL host (default: 0.0.0.0)')
-    # parser.add_argument('--port', type=str, default='5432', help='PostgreSQL port (default: 5432)')
-    # parser.add_argument('--app-port', type=int, default=50798, help='Application port (default: 50798)')
-    
-    # args = parser.parse_args()
-    
-    # # Initialize database
-    # if not initialize_database(args.dbname, args.user, args.password, args.host, args.port):
-    #     print("Failed to initialize database. Exiting.")
-    #     return
-    
-    # Run the application
-    serve()
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    try: serve()
+    except KeyboardInterrupt: pass
+    finally:
+        sys.exit(0)

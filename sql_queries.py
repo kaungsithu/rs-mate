@@ -14,7 +14,7 @@
 | useconnlimit    | text      | The number of connections that the user can open. |
 |                 |           |                                                   |
 """
-GET_ALL_USERS = """
+GET_ALL_USERS_OLD = """
                     SELECT 
                         usename                 AS user_name, 
                         usesysid                AS user_id,
@@ -28,10 +28,32 @@ GET_ALL_USERS = """
                     ORDER BY usename;
                 """
 
+GET_ALL_USERS = """
+                    SELECT 
+                        usesysid                AS user_id,
+                        usename                 AS user_name, 
+                        usesuper                AS super_user 
+                    FROM pg_user_info
+                    ORDER BY usename;
+                """
+
+GET_ALL_USER_ROLES = """
+                    SELECT 
+                        user_id, role_name
+                    FROM svv_user_grants
+                """
+
 # Dynamic queries with placeholders
 GET_USER_GROUPS = """
                     SELECT 
                         groname AS group_name
                     FROM pg_group
                     WHERE %s = ANY(grolist)
+                """
+
+GET_USER_ROLES = """
+                    SELECT 
+                        role_name
+                    FROM svv_user_grants
+                    WHERE user_id = %s
                 """
