@@ -3,6 +3,8 @@ from monsterui.all import *
 from components.common import MainLayout
 from redshift.database import Redshift
 
+__all__ = ['mk_db_frm']
+
 # ===== Database Connection Form =====
 def mk_db_frm(rs: Redshift = None):
     db_frm = Form(
@@ -29,4 +31,3 @@ def mk_db_frm(rs: Redshift = None):
                 cls='w-full md:w-2/3 lg:w-1/2',
             )
     return fill_form(db_frm, rs or Redshift())
-

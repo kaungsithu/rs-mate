@@ -6,6 +6,11 @@ from helpers.session_helper import *
 from fasthtml.common import CheckboxX as fhCheckboxX
 from components.common import *
 
+__all__ = [
+    'mk_delete_role_modal', 'mk_role_link', 'mk_role_table', 'mk_role_nested_roles',
+    'mk_schema_content', 'get_schema_content', 'mk_schema_nav', 'mk_role_privileges', 'mk_role_form'
+]
+
 # ===== Role list table =====
 
 def mk_delete_role_modal(role_name):
