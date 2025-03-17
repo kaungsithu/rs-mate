@@ -92,6 +92,19 @@ GET_USER_INFO_BY_NAME = """
 GET_ALL_GROUPS = """ 
                     SELECT groname AS group_name FROM pg_group;
                 """
+
+GET_GROUP_INFO = """
+                    SELECT groname AS group_name FROM pg_group WHERE groname = %s;
+                """
+
+GET_GROUP_USERS = """
+                    SELECT 
+                        u.usename AS user_name
+                    FROM pg_user u
+                    JOIN pg_group g ON u.usesysid = ANY(g.grolist)
+                    WHERE g.groname = %s
+                    ORDER BY u.usename;
+                """
             
 GET_ALL_ROLES = """
                     SELECT role_id, role_name, role_owner FROM svv_roles ORDER BY role_id;

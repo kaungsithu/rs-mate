@@ -27,12 +27,14 @@ def mk_brand(): return DivLAligned(H1('RSMate', cls=TextT.primary))
 def mk_nav_bar(nav_btns=True, active_btn=None):
     # active_btn = session.get('active_btn')
     if nav_btns:
-        btn_users_cls = btn_roles_cls = ButtonT.default
+        btn_users_cls = btn_roles_cls = btn_groups_cls = ButtonT.default
         if not active_btn or active_btn == 'users': btn_users_cls = ButtonT.primary
         if active_btn == 'roles': btn_roles_cls = ButtonT.primary
+        if active_btn == 'groups': btn_groups_cls = ButtonT.primary
         btns = (
             LinkButton('Users', icon='users', href='/users', cls=btn_users_cls),
             LinkButton('Roles', icon='user-cog', href='/roles', cls=btn_roles_cls),
+            LinkButton('Groups', icon='users', href='/groups', cls=btn_groups_cls),
             LinkButton('Switch Database', icon='arrow-left-right', href='/', cls=ButtonT.default),
         )
     else: btns = None

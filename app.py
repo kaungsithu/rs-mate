@@ -4,6 +4,7 @@ from requests import session
 from redshift.database import Redshift
 from redshift.user import RedshiftUser
 from redshift.role import RedshiftRole
+from redshift.group import RedshiftGroup
 from redshift import sql_queries as sql
 from helpers.session_helper import *
 from monsterui.all import *
@@ -896,6 +897,112 @@ def get(session, role_name: str, schema_name: str):
             return Div(P("Error: Schema not found or role not available"), cls='text-red-500')
     except Exception as e:
         return Div(P(f"Error loading schema content: {str(e)}"), cls='text-red-500')
+
+# ===== Groups =====
+@rt('/groups')
+def get(session):
+    groups = RedshiftGroup.get_all(get_rs(session))
+    return MainLayout(mk_group_table(groups), active_btn='groups')
+
+# Get group users for each group
+@rt('/group-users/{group_name}')
+def get(session, group_name: str):
+    users = RedshiftGroup.get_group_users(group_name, get_rs(session))
+    return BadgeList(users) if users else '-'
+
+# Show group details
+@rt('/group/{group_name}')
+def get(session, group_name: str):
+    try:
+        rs = get_rs(session)
+        group = RedshiftGroup.get_group(group_name, rs)
+        all_users = RedshiftUser.get_all(rs)
+        
+        if group:
+            set_group(session, group)
+            return MainLayout(mk_group_form(group, all_users), active_btn='groups')
+        else:
+            add_toast(session, f'Group with name: {group_name} not found', 'error', True)
+            return RedirectResponse('/groups')
+    except Exception as e:
+        add_toast(session, f'Error retrieving group with name: {group_name}: {str(e)}', 'error', True)
+        return RedirectResponse('/groups')
+
+# Delete group
+@rt('/group/{group_name}')
+def delete(session, group_name: str):
+    try:
+        rs = get_rs(session)
+        group = RedshiftGroup.get_group(group_name, rs)
+        
+        if not group:
+            add_toast(session, f'Group with name: {group_name} not found', 'error', True)
+            return None
+            
+        # Delete group
+        if group.delete(rs):
+            add_toast(session, f'Group {group_name} deleted successfully', 'success', True)
+            return None
+        else:
+            add_toast(session, f'Error deleting group {group_name}', 'error', True)
+            return None
+    except Exception as e:
+        add_toast(session, f'Error deleting group {group_name}: {str(e)}', 'error', True)
+        return None
+
+# Create group
+@rt('/group/create')
+def post(session, frm_data: dict):
+    group_name = frm_data.get('group_name')
+    
+    if not group_name:
+        add_toast(session, 'Group name is required!', 'error', True)
+        return RedirectResponse('/groups', status_code=303)
+    
+    # Create the group in Redshift
+    rs = get_rs(session)
+    try:
+        group = RedshiftGroup.create_group(group_name, rs)
+        
+        if group:
+            add_toast(session, f'Group {group_name} created successfully!', 'success', True)
+            # Redirect to the group detail page for further configuration
+            return RedirectResponse(url=f'/group/{group.group_name}', status_code=303)
+        else:
+            add_toast(session, f'Error creating group {group_name}!', 'error', True)
+            return RedirectResponse(url='/groups', status_code=303)
+    except Exception as e:
+        add_toast(session, f'Error creating group: {str(e)}', 'error', True)
+        return RedirectResponse(url='/groups', status_code=303)
+
+# ===== Group Users =====
+@rt('/group/add-user')
+def post(session, frm_data: dict):
+    group = get_group(session)
+    user_name = frm_data['user-select'][1] if frm_data['user-select'] else None
+    if user_name: group.users = set(group.users) | set([user_name])
+    set_group(session, group)
+    ls_id = frm_data['user_list_id']
+    return RemovableList(group.users, id=ls_id, 
+                         hx_post='/group/remove-user', hx_target=f'#{ls_id}')
+
+@rt('/group/remove-user')
+def post(session, frm_data: dict):
+    group = get_group(session)
+    group.users = set(group.users) - set(frm_data.keys())
+    set_group(session, group)
+    ls_id = frm_data['user_list_id']
+    return RemovableList(group.users, id=ls_id, 
+                         hx_post='/group/remove-user', hx_target=f'#{ls_id}')
+
+@rt('/group/save-users')
+def post(session, group: RedshiftGroup):
+    group = get_group(session)
+    if group.update_users(group.users, get_rs(session)):
+        add_toast(session, 'Group users saved successfully!', 'success', True)
+    else:
+        add_toast(session, 'Error saving group users!', 'error', True)
+    return None
 
 # ===== End Routes =====
 
