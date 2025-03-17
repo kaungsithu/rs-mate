@@ -1,7 +1,7 @@
 import redshift.sql_queries as sql
 from redshift.database import Redshift
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List
 
 # TODO: Groups and roles update might be overwriting each other values.
 @dataclass
@@ -20,6 +20,7 @@ class RedshiftUser:
     password: Optional[str] = None
     groups: list = field(default_factory=list)
     roles: list = field(default_factory=list)
+    privileges: List[dict] = field(default_factory=list)
 
     def update_fields(self, data: dict):
         if data:
@@ -99,18 +100,37 @@ class RedshiftUser:
         results = rs.execute_query(sql.GET_USER_ROLES, (user_id,))
         return [r[0] for r in results] if results else []
 
-    # @staticmethod
-    # def get_all_user_roles(session):
-    #     'Get all roles in Redshift'
-    #     query = sql.GET_ALL_USER_ROLES
-    #     results = redshift.execute_query(query, session)
+    @staticmethod
+    def get_user_privileges(user_name: str, rs: Redshift) -> list:
+        """
+        Get all privileges for a specific user
         
-    #     user_roles = {}
-    #     for user_role in results:
-    #         if user_role[0] not in user_roles:
-    #             user_roles[user_role[0]] = []
-    #         user_roles[user_role[0]].append(user_role[1])
-    #     return user_roles
+        Args:
+            user_name: The name of the user
+            rs: Redshift connection
+            
+        Returns:
+            list: List of privilege dictionaries
+        """
+        try:
+            results = rs.execute_query(sql.GET_USER_PRIVILEGES_BY_NAME, (user_name, user_name,))
+            privileges = []
+            
+            if results:
+                for row in results:
+                    privilege = {
+                        'schema_name': row[0],
+                        'object_name': row[1],
+                        'object_type': row[2],
+                        'privilege_type': row[3],
+                        'is_grantable': row[4]
+                    }
+                    privileges.append(privilege)
+                    
+            return privileges
+        except Exception as e:
+            print(f"Error getting privileges for user {user_name}: {e}")
+            return []
 
     @staticmethod
     def get_svv_user_info(user_id: int, rs: Redshift) -> dict:
@@ -132,6 +152,9 @@ class RedshiftUser:
                 user.update_fields(RedshiftUser.get_svv_user_info(user_id, rs))
                 user.groups = RedshiftUser.get_user_groups(user_id, rs)
                 user.roles = RedshiftUser.get_user_roles(user_id, rs)
+                
+                # Get privileges for this user
+                user.privileges = cls.get_user_privileges(user.user_name, rs)
         
             return user
         return None
@@ -297,4 +320,90 @@ class RedshiftUser:
             return queries is None or all(map(rs.execute_cmd, queries))
         except Exception as e:
             print(f"error updating redshift user roles: {e}")
+            return False
+
+    # ===== User Privileges =====
+    def grant_privilege(self, schema_name: str, object_name: str, object_type: str, 
+                       privilege_type: str, rs: Redshift) -> bool:
+        """
+        Grant a privilege to this user
+        
+        Args:
+            schema_name: The name of the schema
+            object_name: The name of the object
+            object_type: The type of the object (TABLE, VIEW, FUNCTION, PROCEDURE)
+            privilege_type: The type of privilege (SELECT, INSERT, UPDATE, DELETE, EXECUTE)
+            rs: Redshift connection
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Grant privilege SQL
+            if object_type.upper() in ['TABLE', 'VIEW']:
+                grant_sql = f"GRANT {privilege_type} ON {schema_name}.{object_name} TO {self.user_name};"
+            elif object_type.upper() in ['FUNCTION', 'PROCEDURE']:
+                grant_sql = f"GRANT EXECUTE ON {object_type} {schema_name}.{object_name} TO {self.user_name};"
+            else:
+                # Schema level privilege
+                grant_sql = f"GRANT {privilege_type} ON SCHEMA {schema_name} TO {self.user_name};"
+            
+            # Execute SQL
+            success = rs.execute_cmd(grant_sql)
+            
+            if success:
+                # Add to privileges list
+                self.privileges.append({
+                    'schema_name': schema_name,
+                    'object_name': object_name,
+                    'object_type': object_type,
+                    'privilege_type': privilege_type,
+                    'is_grantable': False
+                })
+                
+            return success
+        except Exception as e:
+            print(f"Error granting privilege to {self.user_name}: {e}")
+            return False
+    
+    def revoke_privilege(self, schema_name: str, object_name: str, object_type: str, 
+                        privilege_type: str, rs: Redshift) -> bool:
+        """
+        Revoke a privilege from this user
+        
+        Args:
+            schema_name: The name of the schema
+            object_name: The name of the object
+            object_type: The type of the object (TABLE, VIEW, FUNCTION, PROCEDURE)
+            privilege_type: The type of privilege (SELECT, INSERT, UPDATE, DELETE, EXECUTE)
+            rs: Redshift connection
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Revoke privilege SQL
+            if object_type.upper() in ['TABLE', 'VIEW']:
+                revoke_sql = f"REVOKE {privilege_type} ON {schema_name}.{object_name} FROM {self.user_name};"
+            elif object_type.upper() in ['FUNCTION', 'PROCEDURE']:
+                revoke_sql = f"REVOKE EXECUTE ON {object_type} {schema_name}.{object_name} FROM {self.user_name};"
+            else:
+                # Schema level privilege
+                revoke_sql = f"REVOKE {privilege_type} ON SCHEMA {schema_name} FROM {self.user_name};"
+            
+            # Execute SQL
+            success = rs.execute_cmd(revoke_sql)
+            
+            if success:
+                # Remove from privileges list
+                self.privileges = [p for p in self.privileges if not (
+                    p['schema_name'] == schema_name and
+                    p['object_name'] == object_name and
+                    p['object_type'] == object_type and
+                    p['privilege_type'] == privilege_type
+                )]
+                
+            return success
+        except Exception as e:
+            print(f"Error revoking privilege from {self.user_name}: {e}")
             return False

@@ -166,6 +166,48 @@ GET_ROLE_PRIVILEGES = """
                       AND identity_name = %s;
                 """
 
+GET_USER_PRIVILEGES_BY_NAME = """
+                    SELECT 
+                        p.namespace_name, 
+                        p.relation_name, 
+                        (CASE WHEN t.table_type = 'BASE TABLE' THEN 'TABLE'
+                            ELSE 'VIEW' 
+                        END) AS relation_type, 
+                        p.privilege_type, 
+                        p.admin_option 
+                    FROM svv_relation_privileges p
+                    INNER JOIN svv_tables t 
+                        ON t.table_schema = p.namespace_name
+                        AND t.table_name = p.relation_name
+                    WHERE t.table_catalog = 'dev'
+                      AND t.table_schema NOT LIKE 'pg_%' 
+                      AND t.table_schema NOT LIKE 'information_schema'
+                      AND t.table_schema <> 'public'
+                      AND t.table_type IN ('BASE TABLE', 'VIEW')
+                      AND p.identity_type = 'user'
+                      AND p.identity_name = %s
+                    UNION ALL 
+                    SELECT 
+                        p.namespace_name, 
+                        p.function_name, 
+                        (CASE WHEN f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION') THEN 'FUNCTION'
+                            ELSE 'PROCEDURE' 
+                        END) AS relation_type, 
+                        p.privilege_type, 
+                        p.admin_option 
+                    FROM svv_function_privileges p
+                    INNER JOIN svv_redshift_functions f 
+                        ON f.schema_name = p.namespace_name
+                        AND f.function_name = p.function_name
+                    WHERE f.database_name = 'dev'
+                      AND f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION', 'STORED PROCEDURE')
+                      AND f.schema_name NOT LIKE 'pg_%'
+                      AND f.schema_name NOT LIKE 'information_schema'
+                      AND f.schema_name <> 'public'
+                      AND identity_type = 'user'
+                      AND identity_name = %s;
+                """
+
 GET_ALL_SCHEMAS = """
                     SELECT schema_name 
                     FROM svv_all_schemas
