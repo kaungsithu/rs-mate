@@ -4,7 +4,8 @@ import redshift_connector
 import json
 
 
-fernet = Fernet(Fernet.generate_key())
+# fernet = Fernet(Fernet.generate_key())
+fernet = Fernet(b'Eur3dKoPu0q0L28peTM4hIqjjJYbEvyEb43L0etCeOs=')
 redshift_connector.paramstyle = 'pyformat'
 
 @dataclass
@@ -15,35 +16,30 @@ def store_db_info(db:DBInfo, session):
     session['dbinfo'] = fernet.encrypt(json.dumps(asdict(db)).encode()).decode()
 
 def load_db_info(session):
-    return DBInfo(**json.loads(fernet.decrypt(session.get('dbinfo').encode()).decode()))
+    if session['dbinfo']:
+        return DBInfo(**json.loads(fernet.decrypt(session.get('dbinfo').encode()).decode()))
+    else:
+        return None 
 
 
 def run_sql(query:str, db:DBInfo, args=None, fetch=True):
     try:
-        conn = redshift_connector.connect(
-            host=db.host, port=db.port, database=db.name, user=db.user, password=db.pwd
-        )
-        cursor = conn.cursor()
-        cursor.execute(query, args=args)
+        with redshift_connector.connect(
+            host=db.host, port=db.port, database=db.name, 
+            user=db.user, password=db.pwd
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query, args=args)
 
-        if fetch:
-            results = cursor.fetchall()
-            return results
-        else:
-            conn.commit()
-            return cursor.rowcount
+                if fetch:
+                    results = cursor.fetchall()
+                    return results
+                else:
+                    conn.commit()
+                    return cursor.rowcount
         
     except Exception as e:
-        if conn:
-            conn.rollback()
         print(f"Database error: {e}")
-        raise
-
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 def test_conn(db:DBInfo):
     # test connection 
@@ -52,6 +48,7 @@ def test_conn(db:DBInfo):
 def execute_query(query:str, session, args=None, fetch=True):
     try:
         db = load_db_info(session)
-        return run_sql(query, db, args, fetch)
+        return run_sql(query, db, args, fetch) if db else None
     except Exception as e:
         print(e)
+        return None 
