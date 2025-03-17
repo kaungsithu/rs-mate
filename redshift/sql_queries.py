@@ -94,7 +94,7 @@ GET_ALL_GROUPS = """
                 """
             
 GET_ALL_ROLES = """
-                    SELECT role_name FROM svv_roles;
+                    SELECT role_id, role_name, role_owner FROM svv_roles ORDER BY role_id;
                 """
 
 # Role queries

@@ -266,7 +266,7 @@ class RedshiftUser:
         'Get all roles available in Redshift'
         try:
             results = rs.execute_query(sql.GET_ALL_ROLES, rs)
-            return [role[0] for role in results] if results else []
+            return [role[1] for role in results] if results else []
         except Exception as e:
             print(e)
             return []

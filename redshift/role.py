@@ -34,20 +34,19 @@ class RedshiftRole:
             
             if results:
                 for row in results:
-                    role_name = row[0]
-                    # Get additional role information
-                    role = cls(role_name=role_name)
+                    role_id = row[0]
+                    role_name = row[1]
+                    role_owner = row[2] if len(row) > 2 else None
+                    
+                    # Create role object with the available information
+                    role = cls(
+                        role_name=role_name,
+                        role_id=role_id,
+                        owner_name=role_owner
+                    )
                     roles.append(role)
                 
-                # Get users for each role
-                role_users = cls.get_all_role_users(rs)
-                for role in roles:
-                    role.users = role_users.get(role.role_name, set())
-                
-                # Get nested roles for each role
-                role_nested_roles = cls.get_all_role_nested_roles(rs)
-                for role in roles:
-                    role.nested_roles = role_nested_roles.get(role.role_name, set())
+                # Users and nested roles are lazily loaded when needed
                 
             return roles
         except Exception as e:

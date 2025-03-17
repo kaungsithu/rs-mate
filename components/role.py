@@ -7,6 +7,13 @@ from fasthtml.common import CheckboxX as fhCheckboxX
 from components.common import *
 
 # ===== Role list table =====
+
+def mk_role_link(role: RedshiftRole):
+    if role.role_id >= 200_000: 
+        return A(role.role_name, href=f'/role/{role.role_name}', cls='text-blue-500')
+    else:
+        return A(role.role_name, href='#', cls=TextT.muted)
+
 def mk_role_table(roles: list=None):
     if not roles:
         return Div(H3('No roles retrieved from Redshift.'), cls='mt-10 text-red-400')
@@ -15,9 +22,9 @@ def mk_role_table(roles: list=None):
     for role in roles:
         rows.append(
             Tr(
-                Td(A(role.role_name, 
-                    href=f'/role/{role.role_name}'),
-                    cls='RoleName text-blue-500'),
+                Td(role.role_id, cls='ID'),
+                Td(mk_role_link(role), cls='RoleName'),
+                Td(role.owner_name if role.owner_name else '-', cls='Owner'),
                 Td(
                     Loading((LoadingT.dots, LoadingT.xs), htmx_indicator=True),
                     hx_get=f'/role-users/{role.role_name}',
@@ -42,7 +49,7 @@ def mk_role_table(roles: list=None):
             )
         )
 
-    tbl_headers = ['Role Name', 'Users', 'Nested Roles', 'Actions']
+    tbl_headers = ['ID', 'Role Name', 'Owner', 'Users', 'Nested Roles', 'Actions']
     tbl = Table(Thead(Tr(*map(Th, tbl_headers))), Tbody(*rows, cls='list'), cls=(TableT.striped))
     card_header=(H4('Redshift Roles'), Subtitle('Click on each role name to manage role details'))
     ctrls = DivFullySpaced(
@@ -256,7 +263,8 @@ def mk_role_form(role: RedshiftRole, all_roles: list, schemas: list):
                 CardHeader(
                     DivFullySpaced(
                         DivLAligned(
-                            H3(f'{role.role_name}', cls=TextT.primary)
+                            H3(f'{role.role_name}', cls=TextT.primary),
+                            P(Output(f'ID: {role.role_id}')),
                         ),
                         LinkButton('All Roles', icon='arrow-left', href='/roles', cls=ButtonT.default),
                     )
