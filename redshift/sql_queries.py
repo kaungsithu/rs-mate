@@ -81,6 +81,79 @@ GET_ALL_ROLES = """
                     SELECT role_name FROM svv_roles;
                 """
 
+# Role queries
+GET_ROLE_INFO = """
+                    SELECT role_name FROM svv_roles WHERE role_name = %s;
+                """
+
+GET_ALL_ROLE_USERS = """
+                    SELECT role_name, user_name 
+                    FROM svv_user_grants;
+                """
+
+GET_ROLE_USERS = """
+                    SELECT user_name 
+                    FROM svv_user_grants 
+                    WHERE role_name = %s;
+                """
+
+GET_ALL_ROLE_NESTED_ROLES = """
+                    SELECT role_name, granted_role_name 
+                    FROM svv_role_grants;
+                """
+
+GET_ROLE_NESTED_ROLES = """
+                    SELECT granted_role_name 
+                    FROM svv_role_grants 
+                    WHERE role_name = %s;
+                """
+
+GET_ROLE_PRIVILEGES = """
+                    SELECT 
+                        namespace_name, 
+                        relation_name, 
+                        relation_type, 
+                        privilege_type, 
+                        admin_option 
+                    FROM svv_relation_privileges 
+                    WHERE identity_name = %s AND identity_type = 'role';
+                """
+
+GET_ALL_SCHEMAS = """
+                    SELECT schema_name 
+                    FROM information_schema.schemata 
+                    WHERE schema_name NOT LIKE 'pg_%' 
+                    AND schema_name NOT LIKE 'information_schema';
+                """
+
+GET_SCHEMA_TABLES = """
+                    SELECT table_name 
+                    FROM information_schema.tables 
+                    WHERE table_schema = %s 
+                    AND table_type = 'BASE TABLE';
+                """
+
+GET_SCHEMA_VIEWS = """
+                    SELECT table_name 
+                    FROM information_schema.tables 
+                    WHERE table_schema = %s 
+                    AND table_type = 'VIEW';
+                """
+
+GET_SCHEMA_FUNCTIONS = """
+                    SELECT routine_name 
+                    FROM information_schema.routines 
+                    WHERE routine_schema = %s 
+                    AND routine_type = 'FUNCTION';
+                """
+
+GET_SCHEMA_PROCEDURES = """
+                    SELECT routine_name 
+                    FROM information_schema.routines 
+                    WHERE routine_schema = %s 
+                    AND routine_type = 'PROCEDURE';
+                """
+
 # ===== Privileges =====
 
 GET_USER_PRIVILEGES = """
