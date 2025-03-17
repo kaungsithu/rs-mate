@@ -143,9 +143,11 @@ def mk_role_nested_roles(role: RedshiftRole, all_roles: list):
 def mk_schema_content(schema: str, schema_privileges: dict, schema_relations: dict):
     # Tables
     tables_rows = []
+    existing_tables = []
     for key, privs in schema_privileges.items():
         if key.startswith('TABLE:'):
             obj_type, obj_name = key.split(':', 1)
+            existing_tables.append(obj_name)
             tables_rows.append(
                 Tr(
                     Td(obj_name),
@@ -161,28 +163,34 @@ def mk_schema_content(schema: str, schema_privileges: dict, schema_relations: di
                     Td(fhCheckboxX(id=f'priv-{schema}-{obj_name}-DELETE', 
                                   checked='DELETE' in privs, 
                                   cls='uk-checkbox')),
+                    id=f'table-row-{schema}-{obj_name}'
                 )
             )
     
     # Views
     views_rows = []
+    existing_views = []
     for key, privs in schema_privileges.items():
         if key.startswith('VIEW:'):
             obj_type, obj_name = key.split(':', 1)
+            existing_views.append(obj_name)
             views_rows.append(
                 Tr(
                     Td(obj_name),
                     Td(fhCheckboxX(id=f'priv-{schema}-{obj_name}-SELECT', 
                                   checked='SELECT' in privs, 
                                   cls='uk-checkbox')),
+                    id=f'view-row-{schema}-{obj_name}'
                 )
             )
     
     # Functions and Procedures
     funcs_rows = []
+    existing_funcs = []
     for key, privs in schema_privileges.items():
         if key.startswith('FUNCTION:') or key.startswith('PROCEDURE:'):
             obj_type, obj_name = key.split(':', 1)
+            existing_funcs.append(obj_name)
             funcs_rows.append(
                 Tr(
                     Td(obj_type),
@@ -190,6 +198,7 @@ def mk_schema_content(schema: str, schema_privileges: dict, schema_relations: di
                     Td(fhCheckboxX(id=f'priv-{schema}-{obj_name}-EXECUTE', 
                                   checked='EXECUTE' in privs, 
                                   cls='uk-checkbox')),
+                    id=f'func-row-{schema}-{obj_name}'
                 )
             )
     
@@ -200,6 +209,8 @@ def mk_schema_content(schema: str, schema_privileges: dict, schema_relations: di
             Tbody(*tables_rows, id=f'tables-tbody-{schema}'),
             cls=(TableT.striped, TableT.sm)
         ),
+        # Add hidden fields to track existing tables
+        *[Hidden(id=f'table-row-{schema}-{table_name}', value='exists') for table_name in existing_tables],
         cls='mb-6'
     )
         
@@ -231,6 +242,8 @@ def mk_schema_content(schema: str, schema_privileges: dict, schema_relations: di
             Tbody(*views_rows, id=f'views-tbody-{schema}'),
             cls=(TableT.striped, TableT.sm)
         ),
+        # Add hidden fields to track existing views
+        *[Hidden(id=f'view-row-{schema}-{view_name}', value='exists') for view_name in existing_views],
         cls='mb-6'
     )
         
@@ -261,6 +274,8 @@ def mk_schema_content(schema: str, schema_privileges: dict, schema_relations: di
             Tbody(*funcs_rows, id=f'functions-tbody-{schema}'),
             cls=(TableT.striped, TableT.sm)
         ),
+        # Add hidden fields to track existing functions
+        *[Hidden(id=f'func-row-{schema}-{func_name}', value='exists') for func_name in existing_funcs],
         cls='mb-6'
     )
         
