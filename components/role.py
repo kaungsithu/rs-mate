@@ -42,7 +42,7 @@ def mk_role_table(roles: list=None):
                            hx_delete=f'/role/{role.role_name}',
                            hx_confirm=f'Are you sure you want to delete role {role.role_name}?',
                            hx_target=f'#role-row-{role.role_name}',
-                           hx_swap='outerHTML'),
+                           hx_swap='outerHTML') if role.role_id >= 200_000 else '-',
                     id=f'role-row-{role.role_name}',
                     cls='Actions'
                 )
