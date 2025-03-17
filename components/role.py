@@ -8,6 +8,29 @@ from components.common import *
 
 # ===== Role list table =====
 
+def mk_delete_role_modal(role_name):
+    """Create a delete confirmation modal for a role"""
+    delete_btn_id = f'delete-btn-{role_name}'
+    return Modal(
+        ModalHeader(H3(f"Delete Role: {role_name}")),
+        ModalBody(
+            P(f"Are you sure you want to delete role {role_name}?", cls=TextPresets.muted_lg),
+            DivFullySpaced(
+                Button("Cancel", cls=ButtonT.ghost, data_uk_toggle=f"target: #delete-role-modal-{role_name}"),
+                DivLAligned(
+                    Button("Delete", id=delete_btn_id, cls=ButtonT.destructive, 
+                           hx_delete=f'/role/{role_name}',
+                           hx_target=f'#role-row-{role_name}',
+                           hx_swap='outerHTML',
+                           hx_disabled_elt=f'#{delete_btn_id}',
+                           data_uk_toggle=f"target: #delete-role-modal-{role_name}"),
+                    Loading((LoadingT.bars, LoadingT.sm, 'ml-2'), htmx_indicator=True)
+                )
+            )
+        ),
+        id=f'delete-role-modal-{role_name}'
+    )
+
 def mk_role_link(role: RedshiftRole):
     if role.role_id >= 200_000: 
         return A(role.role_name, href=f'/role/{role.role_name}', cls='text-blue-500')
@@ -38,14 +61,13 @@ def mk_role_table(roles: list=None):
                     cls='NestedRoles',
                 ),
                 Td(
-                    Button(UkIcon('trash-2'), cls=ButtonT.destructive, 
-                           hx_delete=f'/role/{role.role_name}',
-                           hx_confirm=f'Are you sure you want to delete role {role.role_name}?',
-                           hx_target=f'#role-row-{role.role_name}',
-                           hx_swap='outerHTML') if role.role_id >= 200_000 else '-',
-                    id=f'role-row-{role.role_name}',
+                    (Button(UkIcon('trash-2'), cls=(ButtonT.destructive, ButtonT.xs), 
+                           data_uk_toggle=f"target: #delete-role-modal-{role.role_name}") if role.role_id >= 200_000 else '-'),
+                    # Add delete confirmation modal if role can be deleted
+                    (mk_delete_role_modal(role.role_name) if role.role_id >= 200_000 else ''),
                     cls='Actions'
-                )
+                ),
+                id=f'role-row-{role.role_name}'
             )
         )
 
@@ -273,7 +295,8 @@ def mk_role_form(role: RedshiftRole, all_roles: list, schemas: list):
                     Div(mk_role_nested_roles(role, all_roles), id='role-nested-roles'),
                     DividerSplit(cls='my-4'),
                     Div(mk_role_privileges(role, schemas), id='role-privileges')
-                )
+                ),
+                cls='w-full lg:w-4/5 mb-6'
         )
 
     return rfrm
