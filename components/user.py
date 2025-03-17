@@ -39,7 +39,8 @@ def mk_user_table(users: RedshiftUser=None):
         )
 
     tbl_headers = ['ID', 'Username', 'Super', 'Groups', 'Roles']
-    tbl = Table(Thead(Tr(*map(Th, tbl_headers))), Tbody(*rows, cls='list'), cls=(TableT.striped))
+    tbl = Table(Thead(Tr(*map(Th, tbl_headers))), Tbody(*rows, cls='list'), 
+                cls=(TableT.striped))
     card_header=(H4('Redshift Users'), Subtitle('Click on each username to manage user details'))
     ctrls = DivFullySpaced(
                 Div(Input(cls='w-sm search', placeholder='Filter users...')),
@@ -91,10 +92,11 @@ def mk_user_table(users: RedshiftUser=None):
         id='new-user-modal'
     )
 
-    card = Card(ctrls, tbl, header=card_header, id='users-table', cls='mt-4')
+    card = Card(ctrls, tbl, header=card_header, id='users-table', cls='mt-4 w-full lg:w-4/5')
     list_script = Script(f"new List('users-table', {{ valueNames: {json.dumps(tbl_headers)} }})")
 
-    return DivVStacked(card, list_script, new_user_modal, cls='w-full lg:w-4/5')
+    return card, list_script, new_user_modal
+    # return DivVStacked(card, list_script, new_user_modal)
 
 # ===== User Management =====
 
