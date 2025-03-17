@@ -116,8 +116,8 @@ def mk_role_nested_roles(role: RedshiftRole, all_roles: list):
     role_nested_roles_frm = Form(
                 DivFullySpaced(
                     H4('Nested Roles'), 
+                    Loading((LoadingT.bars, LoadingT.lg, 'mx-4'), htmx_indicator=True),
                     DivRAligned(
-                        Loading((LoadingT.bars, LoadingT.lg, 'mx-4'), htmx_indicator=True),
                         Button('Save Nested Roles', id='btn-save-nested-roles', cls=ButtonT.primary),
                         cls='space-x-2'
                     ),
@@ -130,7 +130,6 @@ def mk_role_nested_roles(role: RedshiftRole, all_roles: list):
                                   items=role.nested_roles, placeholder='Select Role', 
                                   id='nested-role-select', ls_id='nested-role-list', 
                                   add_hx_post='/role/add-nested-role', remove_hx_post='/role/remove-nested-role'),
-                    Loading((LoadingT.bars, LoadingT.lg, 'mx-4'), htmx_indicator=True),
                     cls='space-y-4', 
                 ),
                 id='role-nested-roles-form',
@@ -212,7 +211,6 @@ def mk_schema_content(schema: str, schema_privileges: dict, schema_relations: di
             DivFullySpaced(
                 H5('Tables'),
                 DivRAligned(
-                    Loading((LoadingT.dots, LoadingT.xs), htmx_indicator=True),
                     Select(*SelectOptions(tables), id=f'new-table-{schema}', name=f'new-table-{schema}', 
                         placeholder='Select Table'),
                     Button('Load Table', id=f'btn-load-table-{schema}', cls=(ButtonT.secondary, ButtonT.sm)), 
@@ -244,7 +242,6 @@ def mk_schema_content(schema: str, schema_privileges: dict, schema_relations: di
             DivFullySpaced(
                 H5('Views'),
                 DivRAligned(
-                    Loading((LoadingT.dots, LoadingT.xs), htmx_indicator=True),
                     Select(*SelectOptions(views), id=f'new-view-{schema}', placeholder='Select View'),
                     Button('Load View', id=f'btn-load-view-{schema}', cls=(ButtonT.secondary, ButtonT.sm)),
                 ),
@@ -282,7 +279,6 @@ def mk_schema_content(schema: str, schema_privileges: dict, schema_relations: di
             DivFullySpaced(
                 H5('Functions & Procedures'),
                 DivRAligned(
-                    Loading((LoadingT.dots, LoadingT.xs), htmx_indicator=True),
                     Select(
                         *SelectOptions(funcs_procs, funcs_procs_vals),  
                         id=f'new-func-{schema}', 
@@ -382,7 +378,6 @@ def mk_role_privileges(role: RedshiftRole, schemas: list, schema_relations=None)
             H4('Privileges'),
             Loading((LoadingT.bars, LoadingT.lg), htmx_indicator=True),
             DivRAligned(
-                Loading((LoadingT.bars, LoadingT.lg), htmx_indicator=True),
                 Button('Save Privileges', id='btn-save-privileges', cls=ButtonT.primary),
                 cls='space-x-2'
             ),

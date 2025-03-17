@@ -321,8 +321,9 @@ class RedshiftRole:
         """
         try:
             # Find roles to add and remove
-            roles_to_add = new_nested_roles - self.nested_roles
-            roles_to_remove = self.nested_roles - new_nested_roles
+            cur_roles = set(RedshiftRole.get_role_nested_roles(self.role_name, rs))
+            roles_to_add = new_nested_roles - cur_roles
+            roles_to_remove = cur_roles - new_nested_roles
             
             # Remove roles
             for role_name in roles_to_remove:
