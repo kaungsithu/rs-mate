@@ -1,23 +1,29 @@
 from dataclasses import Field
 from fasthtml.common import *
+import monsterui
 from redshift import DBInfo, store_db_info, test_conn
 from user import RedshiftUser
 from pico_customs import css
 from helper import session_store_obj, session_get_obj
+from monsterui.all import *
 
-hdrs = (picolink, css)
+# hdrs = (picolink, css)
+hdrs = Theme.violet.headers(mode='light')
 
-app, rt = fast_app(hdrs=hdrs, htmlkw={'data-theme': 'light'}, debug=True, live=True)
+app, rt = fast_app(hdrs=hdrs, debug=True, live=True)
 setup_toasts(app)
 
 def mk_db_frm(db_info=None):
-    db_frm = Form(
-            Input(id='host', placeholder='Database Host'),
-            Input(id='port', placeholder='Database Port', ),
-            Input(id='name', placeholder='Database Name'),
-            Input(id='user', placeholder='Username'),
-            Input(id='pwd', type='password', placeholder='Password'),
-            Button('Connect'),
+    db_frm = Card(Grid(
+                DivVStacked(
+                    LabelInput('Host', id='host', placeholder='Database Host'),
+                    LabelInput('Port', id='port', placeholder='Database Port', ),
+                    LabelInput('Database', id='name', placeholder='Database Name'),
+                    LabelInput('Username', id='user', placeholder='Username'),
+                    LabelInput('Password', id='pwd', type='password', placeholder='Password')
+                ),
+            header=(H3('Connect to Redshift'), Subtitle('Enter Redshift Connection Details.')),
+            footer=Button('Connect', cls=(ButtonT.primary, 'w-full'))),
             hx_post='/', target_id='app-area'
         )
     
