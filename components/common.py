@@ -4,7 +4,7 @@ from monsterui.all import *
 
 # Main Layout
 def MainLayout(*c, nav_btns=True, active_btn=None, **kwargs):
-    return (Title('RSMate'), Container(mk_nav_bar(nav_btns, active_btn), DivCentered(*c, id='app-area')))
+    return (Title('RSMate'), Container(mk_nav_bar(nav_btns, active_btn), DivCentered(*c, id='app-area', cls='mb-6')))
 
 # Form Components
 def FormSectionDiv(*c, cls='space-y-2', **kwargs): return Div(*c, cls=cls, **kwargs)

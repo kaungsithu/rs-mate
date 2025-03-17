@@ -55,6 +55,7 @@ def mk_user_table(users: RedshiftUser=None):
         ModalBody(
             Form(
                 Grid(
+                    Hidden(id='user_id', value='-1'),
                     FormSectionDiv(
                         LabelInput('Username', id='user_name', required=True),
                         HelpText('Redshift username (required)')
@@ -79,20 +80,19 @@ def mk_user_table(users: RedshiftUser=None):
                 #     cls=AlertT.info
                 # ),
                 DivFullySpaced(
-                    ModalCloseButton("Cancel", cls=ButtonT.default),
-                    Button('Create User', id='btn-create-user', cls=ButtonT.primary),
+                    ModalCloseButton("Cancel", cls=ButtonT.default, data_uk_toggle="target: #new-user-modal"),
+                    Button('Create User', id='btn-create-user', cls=ButtonT.primary, data_uk_toggle="target: #new-user-modal"),
                     Loading((LoadingT.bars, LoadingT.lg, 'mx-4'), htmx_indicator=True),
                 ),
                 cls='space-y-6',
-                hx_post='/user/create',
-                hx_target="#app-area",
+                action='/user/create', method='post',
                 hx_disabled_elt='#btn-create-user'
             )
         ),
         id='new-user-modal'
     )
 
-    card = Card(ctrls, tbl, header=card_header, id='users-table', cls='mt-4 w-full lg:w-4/5')
+    card = Card((ctrls, tbl), header=card_header, id='users-table', cls='w-full lg:w-4/5 mb-6')
     list_script = Script(f"new List('users-table', {{ valueNames: {json.dumps(tbl_headers)} }})")
 
     return card, list_script, new_user_modal

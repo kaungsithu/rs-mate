@@ -17,13 +17,15 @@ class RedshiftUser:
     syslog_access: Optional[str] = None
     session_timeout: Optional[int] = None
     last_ddl_time: Optional[str] = None
+    password: Optional[str] = None
     groups: list = field(default_factory=list)
     roles: list = field(default_factory=list)
 
     def update_fields(self, data: dict):
-       for key, value in data.items():
-            if hasattr(self, key):
-                setattr(self, key, value) 
+        if data:
+            for key, value in data.items():
+                    if hasattr(self, key):
+                        setattr(self, key, value) 
 
     @classmethod
     def map_results(cls, results, column_names) -> 'RedshiftUser':
@@ -49,61 +51,35 @@ class RedshiftUser:
             return []
 
     @classmethod
-    def create_user(cls, user_name, password, super_user=False, can_create_db=False, 
-                   connection_limit=0, session_timeout=3600, syslog_access='RESTRICTED', 
-                   password_expiry=None, rs=None):
+    def create_user(cls, u: 'RedshiftUser', rs: Redshift) -> bool:
         """Create a new user in Redshift"""
         try:
             # Build the CREATE USER SQL statement
-            create_sql = f"CREATE USER {user_name} PASSWORD '{password}'"
+            create_sql = f"CREATE USER {u.user_name} PASSWORD '{u.password}'"
             
             # Add user properties
-            if super_user:
-                create_sql += " CREATEUSER"
-            else:
-                create_sql += " NOCREATEUSER"
+            create_sql += f" {'' if u.super_user else 'NO'}CREATEUSER"
+            create_sql += f" {'' if u.can_create_db else 'NO'}CREATEDB"
                 
-            if can_create_db:
-                create_sql += " CREATEDB"
-            else:
-                create_sql += " NOCREATEDB"
+            if u.connection_limit and u.connection_limit > 0:
+                create_sql += f" CONNECTION LIMIT {u.connection_limit}"
                 
-            if connection_limit is not None and connection_limit > 0:
-                create_sql += f" CONNECTION LIMIT {connection_limit}"
+            if u.session_timeout and u.session_timeout > 0:
+                create_sql += f" SESSION TIMEOUT {u.session_timeout}"
                 
-            if session_timeout is not None and session_timeout > 0:
-                create_sql += f" SESSION TIMEOUT {session_timeout}"
+            if u.syslog_access:
+                create_sql += f" SYSLOG ACCESS {u.syslog_access}"
                 
-            if syslog_access:
-                create_sql += f" SYSLOG ACCESS {syslog_access}"
-                
-            if password_expiry:
-                create_sql += f" VALID UNTIL '{password_expiry}'"
+            if u.password_expiry:
+                create_sql += f" VALID UNTIL '{u.password_expiry}'"
                 
             create_sql += ";"
             
             # Execute the SQL command
-            success = rs.execute_cmd(create_sql)
-            
-            if success:
-                # Get the newly created user
-                # We need to query to get the user_id
-                query = f"SELECT usesysid, usename, usesuper, usecreatedb, usecatupd, valuntil, useconfig, CONNECTION_LIMIT FROM pg_user_info WHERE usename = '{user_name}';"
-                results = rs.execute_query(query)
-                
-                if results and len(results) > 0:
-                    cols = ['user_id', 'user_name', 'super_user', 'can_create_db',
-                            'can_update_catalog', 'password_expiry', 
-                            'session_defaults', 'connection_limit']
-                    
-                    user = cls(**dict(zip(cols, results[0])))
-                    user.syslog_access = syslog_access
-                    user.session_timeout = session_timeout
-                    user.last_ddl_time = None
-                    user.groups = []
-                    user.roles = []
-                    
-                    return user
+            if rs.execute_cmd(create_sql):
+                # Get the newly created user to get the user_id
+                user = cls.get_user(-1, rs, user_name=u.user_name, all_info=False)
+                return user if user else None
             
             return None
         except Exception as e:
@@ -141,22 +117,21 @@ class RedshiftUser:
         'Get additional user information. Set to user object and return additional as dict.'
         results = rs.execute_query(sql.GET_SVV_USER_INFO, (user_id,))
         cols = ['syslog_access', 'session_timeout', 'last_ddl_time']
-        
-        if results:
-            return dict(zip(cols, results[0]))
-        else:
-            return dict(zip(cols, (None)*3))
+        return dict(zip(cols, results[0])) if results else None
 
     @classmethod
-    def get_user(cls, user_id: int, rs: Redshift) -> 'RedshiftUser':
+    def get_user(cls, user_id: int, rs: Redshift, user_name: str = None, all_info: bool = True) -> 'RedshiftUser':
         'Get complete user information'
-        results = rs.execute_query(sql.GET_USER_INFO, (user_id,))
+        query = sql.GET_USER_INFO if user_name is None else sql.GET_USER_INFO_BY_NAME
+        param = (user_name,) if user_name is not None else (user_id,)
+        results = rs.execute_query(query, param)
 
         if results:
             user = cls(*results[0])
-            user.update_fields(RedshiftUser.get_svv_user_info(user_id, rs))
-            user.groups = RedshiftUser.get_user_groups(user_id, rs)
-            user.roles = RedshiftUser.get_user_roles(user_id, rs)
+            if all_info:
+                user.update_fields(RedshiftUser.get_svv_user_info(user_id, rs))
+                user.groups = RedshiftUser.get_user_groups(user_id, rs)
+                user.roles = RedshiftUser.get_user_roles(user_id, rs)
         
             return user
         return None

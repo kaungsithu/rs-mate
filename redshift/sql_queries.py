@@ -73,6 +73,22 @@ GET_USER_INFO = """
                     WHERE usesysid = %s;
                 """
 
+GET_USER_INFO_BY_NAME = """
+                    SELECT 
+                        usename                         AS user_name, 
+                        usesysid                        AS user_id,
+                        usesuper                        AS super_user, 
+                        usecreatedb                     AS can_create_db, 
+                        usecatupd                       AS can_update_catalog,
+                        valuntil::timestamp::varchar    AS password_expiry,
+                        useconfig                       AS session_defaults,
+                        useconnlimit                    AS connection_limit
+                    FROM pg_user_info
+                    WHERE usename = %s;
+                """
+
+
+
 GET_ALL_GROUPS = """ 
                     SELECT groname AS group_name FROM pg_group;
                 """
