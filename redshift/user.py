@@ -113,7 +113,7 @@ class RedshiftUser:
             list: List of privilege dictionaries
         """
         try:
-            results = rs.execute_query(sql.GET_USER_PRIVILEGES_BY_NAME, (user_name, user_name,))
+            results = rs.execute_query(sql.GET_USER_PRIVILEGES_BY_NAME, (rs.name, user_name, rs.name, user_name,))
             privileges = []
             
             if results:

@@ -187,7 +187,7 @@ class RedshiftRole:
             list: List of privilege dictionaries
         """
         try:
-            results = rs.execute_query(sql.GET_ROLE_PRIVILEGES, (role_name, role_name,))
+            results = rs.execute_query(sql.GET_ROLE_PRIVILEGES, (rs.name, role_name, rs.name, role_name,))
             privileges = []
             
             if results:

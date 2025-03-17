@@ -596,7 +596,7 @@ def get(session, schema_name: str):
     rs = get_rs(session)
     
     # Get tables for the schema
-    tables_result = rs.execute_query(sql.GET_SCHEMA_TABLES, (schema_name,))
+    tables_result = rs.execute_query(sql.GET_SCHEMA_TABLES, (rs.name, schema_name,))
     tables = [row[0] for row in tables_result] if tables_result else []
     
     # Return options for select
@@ -608,7 +608,7 @@ def get(session, schema_name: str):
     rs = get_rs(session)
     
     # Get views for the schema
-    views_result = rs.execute_query(sql.GET_SCHEMA_VIEWS, (schema_name,))
+    views_result = rs.execute_query(sql.GET_SCHEMA_VIEWS, (rs.name, schema_name,))
     views = [row[0] for row in views_result] if views_result else []
     
     # Return options for select
@@ -622,11 +622,11 @@ def get(session, schema_name: str, frm_data: dict):
     
     if func_type == 'FUNCTION':
         # Get functions for the schema
-        funcs_result = rs.execute_query(sql.GET_SCHEMA_FUNCTIONS, (schema_name,))
+        funcs_result = rs.execute_query(sql.GET_SCHEMA_FUNCTIONS, (rs.name, schema_name,))
         funcs = [row[0] for row in funcs_result] if funcs_result else []
     else:
         # Get procedures for the schema
-        funcs_result = rs.execute_query(sql.GET_SCHEMA_PROCEDURES, (schema_name,))
+        funcs_result = rs.execute_query(sql.GET_SCHEMA_PROCEDURES, (rs.name, schema_name,))
         funcs = [row[0] for row in funcs_result] if funcs_result else []
     
     # Return options for select

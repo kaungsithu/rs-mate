@@ -94,23 +94,23 @@ class Redshift:
         return self.execute_query('SELECT 1') is not None
     
     def get_all_schemas(self) -> list:
-        results = self.execute_query(GET_ALL_SCHEMAS)
+        results = self.execute_query(GET_ALL_SCHEMAS, (self.name,))
         return [row[0] for row in results] if results else []
     
     def get_schema_tables(self, schema: str) -> list:
-        results = self.execute_query(GET_SCHEMA_TABLES, (schema,))
+        results = self.execute_query(GET_SCHEMA_TABLES, (self.name, schema,))
         return [row[0] for row in results] if results else []
     
     def get_schema_views(self, schema: str) -> list:
-        results = self.execute_query(GET_SCHEMA_VIEWS, (schema,))
+        results = self.execute_query(GET_SCHEMA_VIEWS, (self.name, schema,))
         return [row[0] for row in results] if results else []
     
     def get_schema_functions(self, schema: str) -> list:
-        results = self.execute_query(GET_SCHEMA_FUNCTIONS, (schema,))
+        results = self.execute_query(GET_SCHEMA_FUNCTIONS, (self.name, schema,))
         return [row[0] for row in results] if results else []
     
     def get_schema_procedures(self, schema: str) -> list:
-        results = self.execute_query(GET_SCHEMA_PROCEDURES, (schema,))
+        results = self.execute_query(GET_SCHEMA_PROCEDURES, (self.name, schema,))
         return [row[0] for row in results] if results else []
         
     def determine_object_type(self, schema_name: str, object_name: str, privilege_type: str, schema_relations: dict) -> str:

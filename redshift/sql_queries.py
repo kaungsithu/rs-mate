@@ -137,7 +137,7 @@ GET_ROLE_PRIVILEGES = """
                     INNER JOIN svv_tables t 
                         ON t.table_schema = p.namespace_name
                         AND t.table_name = p.relation_name
-                    WHERE t.table_catalog = 'dev'
+                    WHERE t.table_catalog = %s
                       AND t.table_schema NOT LIKE 'pg_%' 
                       AND t.table_schema NOT LIKE 'information_schema'
                       AND t.table_schema <> 'public'
@@ -157,7 +157,7 @@ GET_ROLE_PRIVILEGES = """
                     INNER JOIN svv_redshift_functions f 
                         ON f.schema_name = p.namespace_name
                         AND f.function_name = p.function_name
-                    WHERE f.database_name = 'dev'
+                    WHERE f.database_name = %s
                       AND f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION', 'STORED PROCEDURE')
                       AND f.schema_name NOT LIKE 'pg_%'
                       AND f.schema_name NOT LIKE 'information_schema'
@@ -179,7 +179,7 @@ GET_USER_PRIVILEGES_BY_NAME = """
                     INNER JOIN svv_tables t 
                         ON t.table_schema = p.namespace_name
                         AND t.table_name = p.relation_name
-                    WHERE t.table_catalog = 'dev'
+                    WHERE t.table_catalog = %s
                       AND t.table_schema NOT LIKE 'pg_%' 
                       AND t.table_schema NOT LIKE 'information_schema'
                       AND t.table_schema <> 'public'
@@ -199,7 +199,7 @@ GET_USER_PRIVILEGES_BY_NAME = """
                     INNER JOIN svv_redshift_functions f 
                         ON f.schema_name = p.namespace_name
                         AND f.function_name = p.function_name
-                    WHERE f.database_name = 'dev'
+                    WHERE f.database_name = %s
                       AND f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION', 'STORED PROCEDURE')
                       AND f.schema_name NOT LIKE 'pg_%'
                       AND f.schema_name NOT LIKE 'information_schema'
@@ -214,14 +214,14 @@ GET_ALL_SCHEMAS = """
                     WHERE schema_name NOT LIKE 'pg_%' 
                       AND schema_name NOT LIKE 'information_schema'
                       AND schema_name <> 'public'
-                      AND database_name = 'dev'
+                      AND database_name = %s
                     ORDER BY schema_name;
                 """
 
 GET_SCHEMA_TABLES = """
                     SELECT table_name 
                     FROM svv_tables
-                    WHERE table_catalog = 'dev'
+                    WHERE table_catalog = %s
                       AND table_schema = %s 
                       AND table_type = 'BASE TABLE'
                     ORDER BY table_name;
@@ -230,7 +230,7 @@ GET_SCHEMA_TABLES = """
 GET_SCHEMA_VIEWS = """
                     SELECT table_name 
                     FROM svv_tables
-                    WHERE table_catalog = 'dev'
+                    WHERE table_catalog = %s
                       AND table_schema = %s 
                       AND table_type = 'VIEW'
                     ORDER BY table_name;
@@ -239,7 +239,7 @@ GET_SCHEMA_VIEWS = """
 GET_SCHEMA_FUNCTIONS = """
                     SELECT function_name 
                     FROM svv_redshift_functions
-                    WHERE database_name = 'dev'
+                    WHERE database_name = %s
                       AND schema_name = %s 
                       AND function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION')
                     ORDER BY function_name;
@@ -248,7 +248,7 @@ GET_SCHEMA_FUNCTIONS = """
 GET_SCHEMA_PROCEDURES = """
                     SELECT function_name 
                     FROM svv_redshift_functions
-                    WHERE database_name = 'dev'
+                    WHERE database_name = %s
                       AND schema_name = %s 
                       AND function_type = 'STORED PROCEDURE'
                     ORDER BY function_name;
