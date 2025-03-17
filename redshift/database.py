@@ -112,3 +112,89 @@ class Redshift:
     def get_schema_procedures(self, schema: str) -> list:
         results = self.execute_query(GET_SCHEMA_PROCEDURES, (schema,))
         return [row[0] for row in results] if results else []
+        
+    def determine_object_type(self, schema_name: str, object_name: str, privilege_type: str, schema_relations: dict) -> str:
+        """
+        Determine the type of database object based on schema relations and privilege type
+        
+        Args:
+            schema_name: The name of the schema
+            object_name: The name of the object
+            privilege_type: The type of privilege (SELECT, INSERT, UPDATE, DELETE, EXECUTE)
+            schema_relations: Dictionary of schema relations from session
+            
+        Returns:
+            str: The object type (TABLE, VIEW, FUNCTION, PROCEDURE, SCHEMA)
+        """
+        # Check if we have schema relations for this schema
+        if schema_name in schema_relations:
+            schema_data = schema_relations[schema_name]
+            
+            # For EXECUTE privilege, check if it's a function or procedure
+            if privilege_type == 'EXECUTE':
+                if object_name in schema_data.get('functions', []):
+                    return 'FUNCTION'
+                elif object_name in schema_data.get('procedures', []):
+                    return 'PROCEDURE'
+                else:
+                    # If not found in cached data, query the database directly
+                    functions = self.get_schema_functions(schema_name)
+                    if object_name in functions:
+                        return 'FUNCTION'
+                    
+                    procedures = self.get_schema_procedures(schema_name)
+                    if object_name in procedures:
+                        return 'PROCEDURE'
+                    
+                    # Default to FUNCTION if we can't determine
+                    return 'FUNCTION'
+            
+            # For other privileges, check if it's a table or view
+            else:
+                if object_name in schema_data.get('tables', []):
+                    return 'TABLE'
+                elif object_name in schema_data.get('views', []):
+                    return 'VIEW'
+                else:
+                    # If not found in cached data, query the database directly
+                    tables = self.get_schema_tables(schema_name)
+                    if object_name in tables:
+                        return 'TABLE'
+                    
+                    views = self.get_schema_views(schema_name)
+                    if object_name in views:
+                        return 'VIEW'
+                    
+                    # If object name is empty or special value, it might be a schema-level privilege
+                    if not object_name or object_name == schema_name:
+                        return 'SCHEMA'
+                    
+                    # Default to TABLE if we can't determine
+                    # This is a reasonable default since tables are more common than views
+                    return 'TABLE'
+        else:
+            # If we don't have schema relations, query the database directly
+            if privilege_type == 'EXECUTE':
+                functions = self.get_schema_functions(schema_name)
+                if object_name in functions:
+                    return 'FUNCTION'
+                
+                procedures = self.get_schema_procedures(schema_name)
+                if object_name in procedures:
+                    return 'PROCEDURE'
+                
+                return 'FUNCTION'  # Default
+            else:
+                tables = self.get_schema_tables(schema_name)
+                if object_name in tables:
+                    return 'TABLE'
+                
+                views = self.get_schema_views(schema_name)
+                if object_name in views:
+                    return 'VIEW'
+                
+                # If object name is empty or special value, it might be a schema-level privilege
+                if not object_name or object_name == schema_name:
+                    return 'SCHEMA'
+                
+                return 'TABLE'  # Default

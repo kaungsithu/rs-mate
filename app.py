@@ -496,7 +496,7 @@ def post(session, frm_data: dict):
                 privilege_type = parts[3]
                 
                 # Determine object type based on database metadata
-                object_type = determine_object_type(schema_name, object_name, privilege_type, schema_relations, rs)
+                object_type = rs.determine_object_type(schema_name, object_name, privilege_type, schema_relations)
                 
                 selected_privileges.append({
                     'schema_name': schema_name,
@@ -591,94 +591,6 @@ def post(session, frm_data: dict):
             add_toast(session, 'Error updating privileges!', 'error', True)
     
     return None
-
-# Helper function to determine object type
-def determine_object_type(schema_name: str, object_name: str, privilege_type: str, schema_relations: dict, rs: Redshift) -> str:
-    """
-    Determine the type of database object based on schema relations and privilege type
-    
-    Args:
-        schema_name: The name of the schema
-        object_name: The name of the object
-        privilege_type: The type of privilege (SELECT, INSERT, UPDATE, DELETE, EXECUTE)
-        schema_relations: Dictionary of schema relations from session
-        rs: Redshift connection
-        
-    Returns:
-        str: The object type (TABLE, VIEW, FUNCTION, PROCEDURE, SCHEMA)
-    """
-    # Check if we have schema relations for this schema
-    if schema_name in schema_relations:
-        schema_data = schema_relations[schema_name]
-        
-        # For EXECUTE privilege, check if it's a function or procedure
-        if privilege_type == 'EXECUTE':
-            if object_name in schema_data.get('functions', []):
-                return 'FUNCTION'
-            elif object_name in schema_data.get('procedures', []):
-                return 'PROCEDURE'
-            else:
-                # If not found in cached data, query the database directly
-                functions = rs.get_schema_functions(schema_name)
-                if object_name in functions:
-                    return 'FUNCTION'
-                
-                procedures = rs.get_schema_procedures(schema_name)
-                if object_name in procedures:
-                    return 'PROCEDURE'
-                
-                # Default to FUNCTION if we can't determine
-                return 'FUNCTION'
-        
-        # For other privileges, check if it's a table or view
-        else:
-            if object_name in schema_data.get('tables', []):
-                return 'TABLE'
-            elif object_name in schema_data.get('views', []):
-                return 'VIEW'
-            else:
-                # If not found in cached data, query the database directly
-                tables = rs.get_schema_tables(schema_name)
-                if object_name in tables:
-                    return 'TABLE'
-                
-                views = rs.get_schema_views(schema_name)
-                if object_name in views:
-                    return 'VIEW'
-                
-                # If object name is empty or special value, it might be a schema-level privilege
-                if not object_name or object_name == schema_name:
-                    return 'SCHEMA'
-                
-                # Default to TABLE if we can't determine
-                # This is a reasonable default since tables are more common than views
-                return 'TABLE'
-    else:
-        # If we don't have schema relations, query the database directly
-        if privilege_type == 'EXECUTE':
-            functions = rs.get_schema_functions(schema_name)
-            if object_name in functions:
-                return 'FUNCTION'
-            
-            procedures = rs.get_schema_procedures(schema_name)
-            if object_name in procedures:
-                return 'PROCEDURE'
-            
-            return 'FUNCTION'  # Default
-        else:
-            tables = rs.get_schema_tables(schema_name)
-            if object_name in tables:
-                return 'TABLE'
-            
-            views = rs.get_schema_views(schema_name)
-            if object_name in views:
-                return 'VIEW'
-            
-            # If object name is empty or special value, it might be a schema-level privilege
-            if not object_name or object_name == schema_name:
-                return 'SCHEMA'
-            
-            return 'TABLE'  # Default
 
 # ===== Role Schema Content =====
 @rt('/role/schema-nav/{schema_name}')
