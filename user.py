@@ -1,45 +1,45 @@
+from unittest import result
 import sql_queries as sql
-import redshift
+from redshift import Redshift
 from dataclasses import dataclass, field
 from typing import Optional
 
-# TODO: Not to bring in session here, but to take only what is needed.
+# TODO: Groups and roles update might be overwriting each other values.
 @dataclass
 class RedshiftUser:
-    user_name:str 
-    user_id:int 
-    super_user:bool
-    can_create_db:bool = False
-    can_update_catalog:bool = False
-    password_expiry:Optional[str] = None
-    session_defaults:Optional[list] = None
-    connection_limit:Optional[int] = None
-    syslog_access:Optional[str] = None
-    session_timeout:Optional[int] = None
-    last_ddl_time:Optional[str] = None
-    groups:list = field(default_factory=list)
-    roles:list = field(default_factory=list)
+    user_name: str 
+    user_id: int 
+    super_user: bool
+    can_create_db: bool = False
+    can_update_catalog: bool = False
+    password_expiry: Optional[str] = None
+    session_defaults: Optional[list] = None
+    connection_limit: Optional[int] = None
+    syslog_access: Optional[str] = None
+    session_timeout: Optional[int] = None
+    last_ddl_time: Optional[str] = None
+    groups: list = field(default_factory=list)
+    roles: list = field(default_factory=list)
 
-    def update_fields(self, data:dict):
+    def update_fields(self, data: dict):
        for key, value in data.items():
             if hasattr(self, key):
                 setattr(self, key, value) 
 
     @classmethod
-    def map_results(cls, results, column_names):
+    def map_results(cls, results, column_names) -> 'RedshiftUser':
         return [cls(**dict(zip(column_names, row))) for row in results]
 
     @classmethod
-    def get_all(cls, session):
+    def get_all(cls, rs: Redshift) -> list:
         """
         get all redshift users
         
         returns:
             list: list of redshift user objects
         """
-        print(session)
         try:
-            results = redshift.execute_query(sql.GET_ALL_USERS, session)
+            results = rs.execute_query(sql.GET_ALL_USERS)
             cols = ['user_id', 'user_name', 'super_user', 'can_create_db',
                          'can_update_catalog', 'password_expiry', 
                          'session_defaults', 'connection_limit']
@@ -50,105 +50,52 @@ class RedshiftUser:
             return []
 
     @staticmethod
-    def get_user_groups(user_id, session):
-        """
-        get all groups a user belongs to
+    def get_user_groups(user_id, rs: Redshift):
+        'Get all groups a user belongs to.'
+        results = rs.execute_query(sql.GET_USER_GROUPS, (user_id,))
+        return [g[0] for g in results] if results else []
         
-        args:
-            username (str): username
-            
-        returns:
-            list: list of group names
-        """
-        query = sql.GET_USER_GROUPS
-        results = redshift.execute_query(query, session, (user_id,))
-        
-        groups = []
-        for group_data in results:
-            groups.append(group_data[0])
-        return groups
 
     @staticmethod
-    def get_user_roles(user_id, session):
-        """
-        get all roles a user belongs to
+    def get_user_roles(user_id, rs: Redshift):
+        'Get all roles a user belongs to'
+        results = rs.execute_query(sql.GET_USER_ROLES, (user_id,))
+        return [r[0] for r in results] if results else []
+
+    # @staticmethod
+    # def get_all_user_roles(session):
+    #     'Get all roles in Redshift'
+    #     query = sql.GET_ALL_USER_ROLES
+    #     results = redshift.execute_query(query, session)
         
-        args:
-            username (str): username
-            
-        returns:
-            list: list of role names
-        """
-        query = sql.GET_USER_ROLES
-        results = redshift.execute_query(query, session, (user_id,))
-        
-        roles = []
-        for role_name in results:
-            roles.append(role_name[0])
-        return roles
+    #     user_roles = {}
+    #     for user_role in results:
+    #         if user_role[0] not in user_roles:
+    #             user_roles[user_role[0]] = []
+    #         user_roles[user_role[0]].append(user_role[1])
+    #     return user_roles
 
     @staticmethod
-    def get_all_user_roles(session):
-        """
-        get all roles
-        
-        args:
-            username (str): username
-            
-        returns:
-            dict: dictionary of user id and role names
-        """
-        query = sql.GET_ALL_USER_ROLES
-        results = redshift.execute_query(query, session)
-        
-        user_roles = {}
-        for user_role in results:
-            if user_role[0] not in user_roles:
-                user_roles[user_role[0]] = []
-            user_roles[user_role[0]].append(user_role[1])
-        return user_roles
-
-    @staticmethod
-    def get_svv_user_info(user_id, session):
-        """
-        get user information
-        
-        args:
-            user_id (int): user id
-            
-        returns:
-            dict: user information
-        """
-        query = sql.GET_SVV_USER_INFO
-        results = redshift.execute_query(query, session, (user_id,))
+    def get_svv_user_info(user_id: int, rs: Redshift) -> dict:
+        'Get additional user information. Set to user object and return additional as dict.'
+        results = rs.execute_query(sql.GET_SVV_USER_INFO, (user_id,))
+        cols = ['syslog_access', 'session_timeout', 'last_ddl_time']
         
         if results:
-            return {
-                'syslog_access': results[0][0],
-                'session_timeout': results[0][1],
-                'last_ddl_time': results[0][2]
-            }
-        return {'syslog_access': None, 'session_timeout': None, 'last_ddl_time': None}
+            return dict(zip(cols, results[0]))
+        else:
+            return dict(zip(cols, (None)*3))
 
-    @staticmethod
-    def get_user(user_id:int, session:any):
-        """
-        get user information
-        
-        args:
-            user_id (int): user id
-            
-        returns:
-            dict: user information
-        """
-        query = sql.GET_USER_INFO
-        results = redshift.execute_query(query, session, (user_id,))
+    @classmethod
+    def get_user(cls, user_id: int, rs: Redshift) -> 'RedshiftUser':
+        'Get complete user information'
+        results = rs.execute_query(sql.GET_USER_INFO, (user_id,))
 
         if results:
-            user = RedshiftUser(*results[0])
-            user.update_fields(RedshiftUser.get_svv_user_info(user_id, session))
-            user.groups = RedshiftUser.get_user_groups(user_id, session)
-            user.roles = RedshiftUser.get_user_roles(user_id, session)
+            user = cls(*results[0])
+            user.update_fields(RedshiftUser.get_svv_user_info(user_id, rs))
+            user.groups = RedshiftUser.get_user_groups(user_id, rs)
+            user.roles = RedshiftUser.get_user_roles(user_id, rs)
         
             return user
         return None
@@ -221,67 +168,36 @@ class RedshiftUser:
             else:
                 changes.append(f'SESSION TIMEOUT {upd_user.session_timeout}')
 
-        # if ori_user.groups != upd_user.groups:
-        #     original_groups_set = set(ori_user.groups)
-        #     updated_groups_set = set(upd_user.groups)
-
-        #     added_groups = updated_groups_set - original_groups_set
-        #     removed_groups = original_groups_set - updated_groups_set
-
-        #     for group in added_groups:
-        #         changes.append(f"ADD GROUP {group}")
-        #     for group in removed_groups:
-        #         changes.append(f"REMOVE GROUP {group}")
-
-        # if ori_user.roles != upd_user.roles:
-        #     original_roles_set = set(ori_user.roles)
-        #     updated_roles_set = set(upd_user.roles)
-
-        #     added_roles = updated_roles_set - original_roles_set
-        #     removed_roles = original_roles_set - updated_roles_set
-
-        #     for role in added_roles:
-        #         changes.append(f"ADD ROLE {role}")
-        #     for role in removed_roles:
-        #         changes.append(f"REMOVE ROLE {role}")
-
         if not changes:
             return ''  # No changes detected
 
         return alter_statement + ' ' + ' '.join(changes) + ';'
 
 
-    def update(self, ori_user, session):
-        """
-        update redshift user
-        
-        args:
-            session (sqlalchemy session): database session
-        
-        returns:
-            bool: true if successful, false otherwise
-        """
+    def update(self, rs: Redshift) -> bool:
+        'Update user info in Redshift'
         try:
-            query:str = RedshiftUser.get_alt_user_sql(ori_user, self)
-            result = redshift.execute_query(query, session, fetch=False)
-            return True if result else False
+            ori_user = RedshiftUser.get_user(self.user_id, rs)
+            query = RedshiftUser.get_alt_user_sql(ori_user, self)
+            return rs.execute_cmd(query)
         except Exception as e:
-            print(f"error updating redshift user: {e}")
+            print(f"Error updating redshift user: {e}")
             return False
 
 # ===== User Groups ===== 
 
     @staticmethod
-    def get_all_groups(session):
+    def get_all_groups(rs: Redshift) -> list:
+        'Get all available groups in Redshift'
         try:
-            results = redshift.execute_query(sql.GET_ALL_GROUPS, session)
+            results = rs.execute_query(sql.GET_ALL_GROUPS)
             return [group[0] for group in results] if results else []
         except Exception as e:
             print(e)
             return []
 
     @staticmethod
-    def get_save_groups_sql(user_name:str, ori_groups:list, upd_groups:list):
+    def get_save_groups_sqls(user_name: str, ori_groups: list, upd_groups: list) -> list:
         changes = []
         if ori_groups != upd_groups:
             ori_group_set = set(ori_groups)
@@ -299,36 +215,28 @@ class RedshiftUser:
                 return ''  # No changes detected
             return changes
         
-    def save_groups(self, session):
+    def save_groups(self, rs: Redshift) -> bool:
         try:
-            ori_groups = RedshiftUser.get_user_groups(self.user_id, session)
+            ori_groups = RedshiftUser.get_user_groups(self.user_id, rs)
             queries = RedshiftUser.get_save_groups_sql(self.user_name, ori_groups, self.groups)
-            
-            if not queries: return True 
-
-            results = []
-            for query in queries:
-                result = redshift.execute_query(query, session, fetch=False)
-                results.append(result)
-            
-            results = list(set(results))
-            return True if results and len(results) == 1 and results[0] == -1 else False
+            return queries and all(map(rs.execute_cmd, queries))
         except Exception as e:
             print(f"error updating redshift user groups: {e}")
             return False
 
 # ===== User Roles =====
     @staticmethod
-    def get_all_roles(session):
+    def get_all_roles(rs: Redshift) -> list:
+        'Get all roles available in Redshift'
         try:
-            results = redshift.execute_query(sql.GET_ALL_ROLES, session)
+            results = rs.execute_query(sql.GET_ALL_ROLES, rs)
             return [role[0] for role in results] if results else []
         except Exception as e:
             print(e)
             return []
 
     @staticmethod
-    def get_save_roles_sql(user_name:str, ori_roles:list, upd_roles:list):
+    def get_save_roles_sqls(user_name: str, ori_roles: list, upd_roles: list) -> list:
         changes = []
         if ori_roles != upd_roles:
             ori_role_set = set(ori_roles)
@@ -346,20 +254,11 @@ class RedshiftUser:
                 return ''  # No changes detected
             return changes
         
-    def save_roles(self, session):
+    def save_roles(self, rs: Redshift) -> bool:
         try:
-            ori_roles = RedshiftUser.get_user_roles(self.user_id, session)
+            ori_roles = RedshiftUser.get_user_roles(self.user_id, rs)
             queries = RedshiftUser.get_save_roles_sql(self.user_name, ori_roles, self.roles)
-            
-            if not queries: return True
-
-            results = []
-            for query in queries:
-                result = redshift.execute_query(query, session, fetch=False)
-                results.append(result)
-            
-            results = list(set(results))
-            return True if results and len(results) == 1 and results[0] == -1 else False
+            return queries and all(map(rs.execute_cmd, queries))
         except Exception as e:
             print(f"error updating redshift user roles: {e}")
             return False

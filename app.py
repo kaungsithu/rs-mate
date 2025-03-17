@@ -1,23 +1,18 @@
 from fasthtml.common import *
 from fasthtml.common import CheckboxX as fhCheckboxX
-from redshift import DBInfo, store_db_info, test_conn
+from redshift import Redshift
 from user import RedshiftUser
-from helper import session_store_obj, session_get_obj
+from helper import *
 from monsterui.all import *
 import json
 
 # listjs
 listjs = Script(src='https://cdnjs.cloudflare.com/ajax/libs/list.js/2.3.1/list.min.js')
-
-# hdrs = (picolink, css)
 hdrs = (Theme.violet.headers(mode='light'), listjs)
-
-
 app, rt = fast_app(hdrs=hdrs, debug=True, live=True)
 setup_toasts(app)
 
-
-def mk_db_frm(db_info=None):
+def mk_db_frm(rs: Redshift = None):
     db_frm = DivCentered(
         Form(
             Card(
@@ -44,12 +39,8 @@ def mk_db_frm(db_info=None):
         )
     )
 
-    if not db_info:
-        db_info = DBInfo(host=None, port=5439, name='dev', user=None, pwd=None)
-    else:
-        db_info.pwd = None
-
-    fill_form(db_frm, db_info)
+    rs = rs or Redshift()
+    fill_form(db_frm, rs)
 
     # return Card(db_frm, header=H3('Redshift Connection Info'), footer=PicoBusy())
     return db_frm
@@ -80,40 +71,22 @@ def get(session):
             NavBar(None, brand=mk_brand()),
             mk_db_frm(),
             id='app-area',
-        ),
-        # DividerLine(),
-        # Div(
-        #     mk_nav_bar(),
-        # ),
-        # DividerLine(),
-        # Div(
-        #     mk_user_form(
-        #         RedshiftUser(
-        #             user_id=1,
-        #             user_name='test',
-        #             super_user=True,
-        #             groups=['group1', 'group2'],
-        #             roles=['role1', 'role2'],
-        #         )
-        #     )
-        # ),
-
+        )
     )
 
 # Connect to Redshift, show Nav, User Table
 # TODO: Disable updating admin user
 @rt('/')
-def post(session, db: DBInfo):
-    if not (db.host and db.port and db.name and db.user and db.pwd):
+def post(session, rs: Redshift):
+    if not (rs.host and rs.port and rs.name and rs.user and rs.password):
         add_toast(session, 'All connection fields are required!', 'error', True)
-        return mk_db_frm(db)
+        return mk_db_frm(rs)
 
-    if not test_conn(db):
+    if not rs.test_conn():
         add_toast(session, 'There was a problem connecting to Redshift!', 'error', True)
-        return mk_db_frm(db)
+        return mk_db_frm(rs)
 
-    store_db_info(db, session)
-
+    set_rs(session, rs)
     session['active_btn'] = 'users'
 
     return Div(
@@ -124,38 +97,24 @@ def post(session, db: DBInfo):
 
 @rt('/user-groups/{user_id}')
 def get(session, user_id: int):
-    groups = RedshiftUser.get_user_groups(user_id, session)
-
-    user = session_get_obj(session, f'user-{user_id}', RedshiftUser)
-    user.groups = groups
-    session_store_obj(session, f'user-{user_id}', user)
-
+    groups = RedshiftUser.get_user_groups(user_id, get_rs(session))
     return ', '.join(groups) if groups else '-'
-
 
 # Get user roles for each user
 @rt('/user-roles/{user_id}')
 def get(session, user_id: int):
-    roles = RedshiftUser.get_user_roles(user_id, session)
-
-    user = session_get_obj(session, f'user-{user_id}', RedshiftUser)
-    user.roles = roles
-    session_store_obj(session, f'user-{user_id}', user)
-
+    roles = RedshiftUser.get_user_roles(user_id, get_rs(session))
     return ', '.join(roles) if roles else '-'
 
 
 def mk_user_table(session):
-    users = RedshiftUser.get_all(session)
+    users = RedshiftUser.get_all(get_rs(session))
 
-    if users is None or len(users) == 0:
+    if not users:
         return DivCentered(H3('No users retrieved from Redshift.'), cls='mt-10 text-red-400')
 
     rows = []
     for user in users:
-        # keep users in session
-        session_store_obj(session, f'user-{user.user_id}', user)
-
         rows.append(
             Tr(
                 Td(user.user_id, cls='ID'),
@@ -202,7 +161,7 @@ def get(session):
 def FormSectionDiv(*c, cls='space-y-2', **kwargs): return Div(*c, cls=cls, **kwargs)
 def HelpText(c): return P(c,cls=TextPresets.muted_sm)
 
-def mk_user_props(session, user:RedshiftUser):
+def mk_user_props(session, user :RedshiftUser):
     user_props_frm = Div(
                 H4('User Properties', cls='mb-4'),
                 Form(
@@ -245,46 +204,31 @@ def mk_user_props(session, user:RedshiftUser):
 
 @rt('/all-groups')
 def get(session):
-    return RedshiftUser.get_all_groups(session)
+    return RedshiftUser.get_all_groups(get_rs(session))
 
 @rt('/user/add-group')
-def post(session, frm_data:dict):
-    user = RedshiftUser('', -1, False)
-    user.update_fields(frm_data)
-    user.groups = session.get('cur_user_groups')
+def post(session, frm_data: dict):
+    user = get_user(session)
     # TODO: group_select returning a list with two values. 1st always 1st option, 2nd is selected val.
     group_name = frm_data['group_select'][1] if frm_data['group_select'] else None
-    if group_name and group_name not in user.groups:
-        user.groups.append(group_name)
+    if group_name: user.groups = set(user.groups) | set([group_name])
     return mk_user_groups(session, user)
 
 @rt('/user/remove-group')
-def post(session, frm_data:dict):
-    user = RedshiftUser('', -1, False)
-    user.update_fields(frm_data)
-    user.groups = session.get('cur_user_groups')
-    groups =  list(filter(lambda g: g in frm_data.keys(), user.groups))
-    group_name = groups[0] if groups else None
-    if group_name:
-        user.groups.remove(group_name)
+def post(session, frm_data: dict):
+    user = get_user(session)
+    user.groups = set(user.groups) - set(frm_data.keys())
     return mk_user_groups(session, user)
 
 @rt('/user/save-groups')
-def post(session, user:RedshiftUser):
-    # user = RedshiftUser('', -1, False)
-    # user.update_fields(frm_data)
-
-    user.groups = session.get('cur_user_groups')
-
-    if user.save_groups(session):
-        session_store_obj(session, f'user-{user.user_id}', user)
+def post(session, user: RedshiftUser):
+    if user.save_groups(get_rs(session)):
         add_toast(session, 'User groups saved successfully!', 'success', True)
     else:
         add_toast(session, 'Error saving user groups!', 'error', True)
-
     return mk_user_groups(session, user)
 
-def mk_group_list(groups:list):
+def mk_group_list(groups: list):
     return Ul(*[Li(
                     DivHStacked(
                         UkIconLink('trash-2', button=True, cls=ButtonT.destructive, 
@@ -295,12 +239,13 @@ def mk_group_list(groups:list):
                         Strong(group)
                     )) for group in groups], cls=ListT.bullet, id='group-list')
 
-def mk_group_options(groups:list): 
+def mk_group_options(groups: list): 
     return [Option(group, value=group) for group in groups]
 
-def mk_user_groups(session, user:RedshiftUser):
-    all_groups = RedshiftUser.get_all_groups(session)
-    session['cur_user_groups'] = user.groups
+def mk_user_groups(session, user: RedshiftUser):
+    all_groups = RedshiftUser.get_all_groups(get_rs(session))
+    set_user(session, user)
+    
     user_groups_frm = Div(
                 DivHStacked(H4('Groups', cls='mb-4'), Loading(htmx_indicator=True)),
                 Form(
@@ -332,43 +277,31 @@ def mk_user_groups(session, user:RedshiftUser):
 
 @rt('/all-roles')
 def get(session):
-    return RedshiftUser.get_all_roles(session)
+    return RedshiftUser.get_all_roles(get_rs(session))
 
 @rt('/user/add-role')
-def post(session, frm_data:dict):
-    user = RedshiftUser('', -1, False)
-    user.update_fields(frm_data)
-    user.roles = session.get('cur_user_roles')
+def post(session, frm_data: dict):
+    user = get_user(session)
     # TODO: role_select returning a list with two values. 1st always 1st option, 2nd is selected val.
     role_name = frm_data['role_select'][1] if frm_data['role_select'] else None
-    if role_name and role_name not in user.roles:
-        user.roles.append(role_name)
+    if role_name: user.roles = set(user.roles) | set([role_name])
     return mk_user_roles(session, user)
 
 @rt('/user/remove-role')
-def post(session, frm_data:dict):
-    user = RedshiftUser('', -1, False)
-    user.update_fields(frm_data)
-    user.roles = session.get('cur_user_roles')
-    roles =  list(filter(lambda g: g in frm_data.keys(), user.roles))
-    role_name = roles[0] if roles else None
-    if role_name:
-        user.roles.remove(role_name)
+def post(session, frm_data: dict):
+    user = get_user(session)
+    user.roles = set(user.roles) - set(frm_data.keys())
     return mk_user_roles(session, user)
 
 @rt('/user/save-roles')
-def post(session, user:RedshiftUser):
-    user.roles = session.get('cur_user_roles')
-
-    if user.save_roles(session):
-        session_store_obj(session, f'user-{user.user_id}', user)
+def post(session, user: RedshiftUser):
+    if user.save_roles(get_rs(session)):
         add_toast(session, 'User roles saved successfully!', 'success', True)
     else:
         add_toast(session, 'Error saving user roles!', 'error', True)
-
     return mk_user_roles(session, user)
 
-def mk_role_list(roles:list):
+def mk_role_list(roles: list):
     return Ul(*[Li(
                     DivHStacked(
                         UkIconLink('trash-2', button=True, cls=ButtonT.destructive, 
@@ -379,12 +312,12 @@ def mk_role_list(roles:list):
                         Strong(role)
                     )) for role in roles], cls=ListT.bullet, id='role-list')
 
-def mk_role_options(roles:list): 
+def mk_role_options(roles: list): 
     return [Option(role, value=role) for role in roles]
 
-def mk_user_roles(session, user:RedshiftUser):
-    all_roles = RedshiftUser.get_all_roles(session)
-    session['cur_user_roles'] = user.roles
+def mk_user_roles(session, user: RedshiftUser):
+    all_roles = RedshiftUser.get_all_roles(get_rs(session))
+    set_user(session, user)
     user_roles_frm = Div(
                 DivHStacked(H4('Roles', cls='mb-4'), Loading(htmx_indicator=True)),
                 Form(
@@ -412,11 +345,8 @@ def mk_user_roles(session, user:RedshiftUser):
             )
     return fill_form(user_roles_frm, user)
 
-
-
-
 # ===== Main user detail =====
-def mk_user_form(session, user):
+def mk_user_form(session, user: RedshiftUser):
     ufrm = Card(
                 CardHeader(
                     DivFullySpaced(
@@ -446,15 +376,11 @@ def mk_user_form(session, user):
 
 # Show user details
 @rt('/user/{user_id}')
-def get(session, user_id:int):
-    user = None 
+def get(session, user_id: int):
     try:
-        if f'user-{user_id}' in session:
-            user = session_get_obj(session, f'user-{user_id}', RedshiftUser)
-            if user.syslog_access is None or not user.groups or not user.roles:
-                user = RedshiftUser.get_user(user_id, session)
-                session_store_obj(session, f'user-{user_id}', user)      
-                return mk_user_form(session, user)
+        user = RedshiftUser.get_user(user_id, get_rs(session))
+        if user:
+            return mk_user_form(session, user)
         else:
             add_toast(session, f'User with ID: {user_id} not found', 'error', True)
             return mk_user_table(session)
@@ -462,26 +388,13 @@ def get(session, user_id:int):
         add_toast(session, f'Error retrieving user with ID: {user_id}', 'error', True)
         return mk_user_table(session)
 
-
-    return mk_user_form(session, user)
-
 @rt('/user/save-props')
-def post(session, user:RedshiftUser):
-    try:
-        ori_user = session_get_obj(session, f'user-{user.user_id}', RedshiftUser)
-    except:
-        add_toast(session, f'Error updating user with ID: {user.user_id}', 'error', True)
-        return mk_user_props(session, user)
-    
-    if user.update(ori_user, session):
-        session_store_obj(session, f'user-{user.user_id}', user)
-        add_toast(session, 'User properties saved successfully!', 'success', True)
+def post(session, user: RedshiftUser):
+    if user.update(get_rs(session)):
+        add_toast(session, f'User: {user.user_name} saved successfully!', 'success', True)
     else:
-        add_toast(session, 'Error saving user properties!', 'error', True)
-
+        add_toast(session, f'Error saving user: {user.user_name}!', 'error', True)
     return mk_user_props(session, user)
-
-
 
 if __name__ == '__main__':
     try:

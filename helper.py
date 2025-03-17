@@ -1,39 +1,39 @@
 import json
 from dataclasses import asdict
 from typing import Any
+import pickle
+from redshift import Redshift
+from user import RedshiftUser
 
-# TODO: Not to bring in session here, but to take only what is needed.
-# TODO: Groups and roles update might be overwriting each other values.
-def session_store_obj(session: dict, key: str, obj: Any) -> None:
-    """
-    Stores a object in the session.
 
-    Args:
-        session: The session dictionary.
-        key: The key to store the object under.
-        obj: The object to store (must be JSON-serializable).
-    """
+__all__ = [
+    'sess_store_obj', 'sess_get_obj', 'get_rs', 'set_rs',
+    'get_user', 'set_user'
+    ]
+
+def sess_store_obj(session: dict, key: str, obj:Any):
+    'store pickled object in session'
     try:
-        data = asdict(obj)
-        session[key] = json.dumps(data)
-    except TypeError:
-        print(f"Error: Object with key '{key}' is not JSON serializable.")
-        # Optionally, you might want to raise the exception or handle it differently.
+        session[key] = pickle.dumps(obj).hex()
+    except Exception as e:
+        print(f'Error pickling {key}: {e}')
 
-def session_get_obj(session: dict, key: str, cls: Any) -> Any:
-    """
-    Retrieves a JSON-serializable object from the session.
-
-    Args:
-        session: The session dictionary.
-        key: The key to retrieve the object from.
-        default: The default value to return if the key is not found or the object is not valid JSON.
-
-    Returns:
-        The retrieved object, or the default value.
-    """
+def sess_get_obj(session: dict, key: str):
+    'get pickled object from session'
     try:
-        data = json.loads(session.get(key))
-        return cls(**data)
-    except (json.JSONDecodeError, TypeError):
+        return pickle.loads(bytes.fromhex(session.get(key)))
+    except Exception as e:
+        print(f'Error unpickling {key}: {e}')
         return None
+
+def set_rs(session: dict, rs: Redshift):
+    sess_store_obj(session, 'redshift', rs)
+
+def get_rs(session: dict) -> Redshift:
+    return sess_get_obj(session, 'redshift')
+
+def set_user(session: dict, user: RedshiftUser):
+    sess_store_obj(session, 'rsuser', user)
+
+def get_user(session: dict) -> RedshiftUser:
+    return sess_get_obj(session, 'rsuser')
