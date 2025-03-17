@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Privileges</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 900px; margin: auto; }
+        h2 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px; border: 1px solid #ddd; text-align: left; vertical-align: middle; }
+        .badge { display: inline-block; padding: 5px 10px; margin: 2px; border-radius: 5px; font-size: 12px; color: white; }
+        .usage { background-color: #007bff; }
+        .alter { background-color: #28a745; }
+        .select { background-color: #17a2b8; }
+        .insert { background-color: #ffc107; color: black; }
+        .admin { background-color: #dc3545; }
+        .owner { font-weight: bold; color: #444; display: block; }
+        .manage-btn { background: none; border: none; color: #007bff; cursor: pointer; margin-right: 5px; }
+        .manage-btn:hover { text-decoration: underline; }
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.3); }
+        .modal.active { display: block; }
+    </style>
+    <script>
+        function filterRelations(schema) {
+            const rows = document.querySelectorAll(".relation-row");
+            rows.forEach(row => {
+                row.style.display = row.dataset.schema === schema || schema === "all" ? "table-row" : "none";
+            });
+        }
+        function openModal(id) {
+            let modal = document.getElementById(id);
+            if (modal) {
+                modal.classList.add("active");
+            }
+        }
+        function closeModal(id) {
+            let modal = document.getElementById(id);
+            if (modal) {
+                modal.classList.remove("active");
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h2>User Privileges: analyst_finance</h2>
+        
+        <h3>Schema & Default Privileges</h3>
+        <button class="manage-btn" onclick="openModal('add-modal')"><i class="fas fa-plus"></i> Add</button>
+        <table>
+            <thead>
+                <tr><th>Schema</th><th>Schema Privileges</th><th>Default Privileges (Owners → Privileges)</th><th>Manage</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>finance</td>
+                    <td>
+                        <span class="badge usage">USAGE</span>
+                        <span class="badge alter">ALTER</span>
+                    </td>
+                    <td>
+                        <span class="owner">admin</span>
+                        <span class="badge insert">INSERT</span>
+                        <span class="badge select">SELECT</span>
+                        <br>
+                        <span class="owner">manager</span>
+                        <span class="badge select">SELECT</span>
+                    </td>
+                    <td>
+                        <button class="manage-btn" onclick="openModal('edit-modal')"><i class="fas fa-edit"></i> Edit</button>
+                        <button class="manage-btn"><i class="fas fa-trash"></i> Remove</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h3>Relation Privileges</h3>
+        <button class="manage-btn" onclick="openModal('add-modal')"><i class="fas fa-plus"></i> Add</button>
+        <label for="schema-filter">Filter by Schema:</label>
+        <select id="schema-filter" onchange="filterRelations(this.value)">
+            <option value="all">All</option>
+            <option value="finance">Finance</option>
+            <option value="marketing">Marketing</option>
+            <option value="sales">Sales</option>
+        </select>
+        
+        <table>
+            <thead>
+                <tr><th>Relation</th><th>Privileges</th><th>Manage</th></tr>
+            </thead>
+            <tbody>
+                <tr class="relation-row" data-schema="finance">
+                    <td>finance.accounts</td>
+                    <td>
+                        <span class="badge select">SELECT</span>
+                        <span class="badge insert">INSERT</span>
+                    </td>
+                    <td>
+                        <button class="manage-btn" onclick="openModal('edit-modal')"><i class="fas fa-edit"></i> Edit</button>
+                        <button class="manage-btn"><i class="fas fa-trash"></i> Remove</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="edit-modal" class="modal">
+        <h3>Edit Privileges</h3>
+        <button onclick="closeModal('edit-modal')">Close</button>
+    </div>
+
+    <div id="add-modal" class="modal">
+        <h3>Add Privilege</h3>
+        <button onclick="closeModal('add-modal')">Close</button>
+    </div>
+</body>
+</html>

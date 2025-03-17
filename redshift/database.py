@@ -18,20 +18,20 @@ class Redshift:
     name: str = 'dev'
     user: Optional[str] = None
     pwd: Optional[str] = None
-    _password: bytes = field(default=b'', repr=False)
+    # _password: bytes = field(default=b'', repr=False)
 
-    @property
-    def password(self) -> bytes:
-        return Redshift.get_fernet().decrypt(self._password).decode()
+    # @property
+    # def password(self) -> bytes:
+    #     return Redshift.get_fernet().decrypt(self._password).decode()
     
-    @password.setter
-    def password(self, val: str) -> None:
-        self._password = Redshift.get_fernet().encrypt(val.encode())
+    # @password.setter
+    # def password(self, val: str) -> None:
+    #     self._password = Redshift.get_fernet().encrypt(val.encode())
 
-    def __post_init__(self):
-        if self.pwd:
-            self.password = self.pwd
-            self.pwd = None
+    # def __post_init__(self):
+    #     if self.pwd:
+    #         self.password = self.pwd
+    #         self.pwd = None
 
 
     @staticmethod
@@ -58,7 +58,7 @@ class Redshift:
     def run_sql(self, query: str, args=None, fetch=True) -> Tuple | int | None:
         try:
             with redshift_connector.connect(
-                host=self.host, port=self.port, database=self.name, user=self.user, password=self.password
+                host=self.host, port=self.port, database=self.name, user=self.user, password=self.pwd
             ) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(query, args=args)

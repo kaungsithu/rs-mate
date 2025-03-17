@@ -211,14 +211,14 @@ class RedshiftUser:
                 changes.append(f'ALTER GROUP {group} DROP USER {user_name};')
 
             if not changes:
-                return ''  # No changes detected
+                return None  # No changes detected
             return changes
         
     def save_groups(self, rs: Redshift) -> bool:
         try:
             ori_groups = RedshiftUser.get_user_groups(self.user_id, rs)
-            queries = RedshiftUser.get_save_groups_sql(self.user_name, ori_groups, self.groups)
-            return queries and all(map(rs.execute_cmd, queries))
+            queries = RedshiftUser.get_save_groups_sqls(self.user_name, ori_groups, self.groups)
+            return queries is None or all(map(rs.execute_cmd, queries))
         except Exception as e:
             print(f"error updating redshift user groups: {e}")
             return False
@@ -250,14 +250,14 @@ class RedshiftUser:
                 changes.append(f'REVOKE ROLE {role} FROM {user_name};')
 
             if not changes:
-                return ''  # No changes detected
+                return None  # No changes detected
             return changes
         
     def save_roles(self, rs: Redshift) -> bool:
         try:
             ori_roles = RedshiftUser.get_user_roles(self.user_id, rs)
-            queries = RedshiftUser.get_save_roles_sql(self.user_name, ori_roles, self.roles)
-            return queries and all(map(rs.execute_cmd, queries))
+            queries = RedshiftUser.get_save_roles_sqls(self.user_name, ori_roles, self.roles)
+            return queries is None or all(map(rs.execute_cmd, queries))
         except Exception as e:
             print(f"error updating redshift user roles: {e}")
             return False
