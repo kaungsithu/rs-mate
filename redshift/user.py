@@ -1,6 +1,5 @@
-from unittest import result
-import sql_queries as sql
-from redshift import Redshift
+import redshift.sql_queries as sql
+from redshift.database import Redshift
 from dataclasses import dataclass, field
 from typing import Optional
 

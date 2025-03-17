@@ -1,9 +1,7 @@
-import json
-from dataclasses import asdict
 from typing import Any
 import pickle
-from redshift import Redshift
-from user import RedshiftUser
+from redshift.database import Redshift
+from redshift.user import RedshiftUser
 
 
 __all__ = [

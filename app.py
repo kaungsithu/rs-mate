@@ -1,8 +1,8 @@
 from fasthtml.common import *
 from fasthtml.common import CheckboxX as fhCheckboxX
-from redshift import Redshift
-from user import RedshiftUser
-from helper import *
+from redshift.database import Redshift
+from redshift.user import RedshiftUser 
+from helpers.session_helper import *
 from monsterui.all import *
 import json
 
