@@ -1,9 +1,13 @@
+from dataclasses import Field
 from fasthtml.common import *
 from redshift import DBInfo, store_db_info, test_conn
 from user import RedshiftUser
 from pico_customs import css
+from helper import session_store_obj, session_get_obj
 
-app, rt = fast_app(hdrs=(picolink, css), debug=True)
+hdrs = (picolink, css)
+
+app, rt = fast_app(hdrs=hdrs, htmlkw={'data-theme': 'light'}, debug=True, live=True)
 setup_toasts(app)
 
 def mk_db_frm(db_info=None):
@@ -30,7 +34,11 @@ def mk_db_frm(db_info=None):
 @rt('/')
 def get(session):
     return Title('RS-Mate'), Container(
-        Div(mk_db_frm(), id='app-area')
+        Div(mk_db_frm(), id='app-area'),
+
+        Div(mk_user_form(RedshiftUser(
+            user_id=1, user_name='test', super_user=True, groups=['group1', 'group2'], roles=['role1', 'role2']
+        )))
     )
 
 def mk_btn_bar(active_btn:str=None, **kw):
@@ -66,11 +74,22 @@ def post(session, db:DBInfo):
 @rt('/user-groups/{user_id}')
 def get(session, user_id:int):
     groups = RedshiftUser.get_user_groups(user_id, session)
+
+    user = session_get_obj(session, f'user-{user_id}', RedshiftUser)
+    user.groups = groups
+    session_store_obj(session, f'user-{user_id}', user)
+
     return ", ".join(groups) if groups else "-" 
 
+# Get user roles for each user
 @rt('/user-roles/{user_id}')
 def get(session, user_id:int):
     roles = RedshiftUser.get_user_roles(user_id, session)
+
+    user = session_get_obj(session, f'user-{user_id}', RedshiftUser)
+    user.roles = roles
+    session_store_obj(session, f'user-{user_id}', user)
+
     return ", ".join(roles) if roles else "-" 
 
 def mk_user_table(session):
@@ -78,6 +97,9 @@ def mk_user_table(session):
 
     if users is None or len(users) == 0:
         return Div(H3('No users found in Redshift.'))
+    
+    # keep users in session
+    map(session_store_obj, users, [f'user-{user.user_id}' for user in users])
 
     rows = []
     for user in users:
@@ -98,10 +120,52 @@ def mk_user_table(session):
             )
     return Div(tbl)
 
-
 @rt('/users')
 def get(session):
     return mk_user_table(session), mk_btn_bar('users', hx_swap_oob='true')
+
+
+def mk_user_form(user):
+    ufrm = Card(
+                Form(
+                    Input(id='user_id', type='hidden'),
+                    Grid(
+                        Fieldset(CheckboxX(user.super_user, 'Super User', role='switch')),
+                        Fieldset(CheckboxX(user.can_create_db, 'Create DB', role='switch')),
+                        Fieldset(CheckboxX(user.can_update_catalog, 'Update Catalog', role='switch')),
+                        Div()
+                    ),
+                    Fieldset(
+                        Label('Password Expiry ', 
+                                CheckboxX(user.password_expiry, '', role='switch', id='password_expiry_enabled'),
+                                Input(id='password_expiry', type='date'), 
+                        style='margin-top:1em;')), 
+                    Fieldset(
+                        Label('Connection Limit', 
+                            CheckboxX(user.connection_limit, '', role='switch', id='connection_limit_enabled'),
+                            Input(id='connection_limit'))),  
+                Card(
+                    Ul(*[Li(group) for group in user.groups]),
+                    header=H4('Groups')
+                ),
+                Card(
+                    Ul(*[Li(role) for role in user.roles]),
+                header=H4('Roles')
+            ),
+                ),
+        header=H3(f'Manage User: {user.user_id} - {user.user_name}'),
+        footer=Div(Button('Save'))
+    )
+
+    return ufrm
+
+@rt('/users/{user_id}:int')
+def get(session, user_id):
+    user = session_get_obj(session, f'user-{user_id}', RedshiftUser)
+
+
+
+
 
 if __name__ == "__main__":
     try: serve()

@@ -1,9 +1,12 @@
 from fasthtml.components import Style
 
 # REF: https://github.com/picocss/pico/discussions/482
+
+        # --pico-font-family: Roboto, Oxygen, Ubuntu, Cantarell, Helvetica, Arial, var(--pico-font-family);
+        # --pico-font-family-sans-serif: Roboto, Oxygen, Ubuntu, Cantarell, Helvetica, Arial, "Segoe UI", Inter, system-ui, "Helvetica Neue", sans-serif, var(--pico-font-family-emoji);
+        
 custom_css_str = """
     :root {
-        --pico-font-family-sans-serif: Roboto, Oxygen, Ubuntu, Cantarell, Helvetica, Arial, "Segoe UI", Inter, system-ui, "Helvetica Neue", sans-serif, var(--pico-font-family-emoji);
         --pico-font-size: 90%;
         /* Original: 100% */
         --pico-line-height: 1.25;

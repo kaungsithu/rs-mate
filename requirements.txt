@@ -1,2 +1,7 @@
+cryptography==44.0.2
+pandas==2.2.3
 psycopg2_binary==2.9.10
 python_fasthtml==0.12.4
+redshift_connector==2.1.5
+SQLAlchemy==2.0.38
+sqlalchemy_redshift==0.8.14

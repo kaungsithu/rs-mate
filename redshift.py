@@ -15,7 +15,7 @@ def store_db_info(db:DBInfo, session):
     session['dbinfo'] = fernet.encrypt(json.dumps(asdict(db)).encode()).decode()
 
 def load_db_info(session):
-    return DBInfo(**json.loads(fernet.decrypt(session['dbinfo'].encode()).decode()))
+    return DBInfo(**json.loads(fernet.decrypt(session.get('dbinfo').encode()).decode()))
 
 
 def run_sql(query:str, db:DBInfo, args=None, fetch=True):

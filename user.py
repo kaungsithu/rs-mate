@@ -33,18 +33,10 @@ class RedshiftUser:
         try:
             return cls.map_results(
                         redshift.execute_query(sql.GET_ALL_USERS, session), 
-                        ['user_id', 'user_name', 'super_user']
+                        ['user_id', 'user_name,' 'super_user,' 'can_create_db,' 
+                         'can_update_catalog', 'password_expiry', 
+                         'session_defaults', 'connection_limi']
                     )
-            
-            #     # get user's groups
-            #     user.groups = cls.get_user_groups(user.user_id, session)
-            #     users.append(user)
-            
-            # user_roles = cls.get_all_user_roles(session)
-            # for user in users:
-            #     if user.user_id in user_roles:
-            #         user.roles = user_roles[user.user_id]
-
         except Exception as e: 
             print(e)
             return []
