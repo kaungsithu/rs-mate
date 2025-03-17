@@ -2,11 +2,12 @@ from typing import Any
 import pickle
 from redshift.database import Redshift
 from redshift.user import RedshiftUser
+from redshift.role import RedshiftRole
 
 
 __all__ = [
     'sess_store_obj', 'sess_get_obj', 'get_rs', 'set_rs',
-    'get_user', 'set_user'
+    'get_user', 'set_user', 'get_role', 'set_role'
     ]
 
 def sess_store_obj(session: dict, key: str, obj:Any):
@@ -35,3 +36,9 @@ def set_user(session: dict, user: RedshiftUser):
 
 def get_user(session: dict) -> RedshiftUser:
     return sess_get_obj(session, 'rsuser')
+
+def set_role(session, role: RedshiftRole):
+    sess_store_obj(session, 'rsrole', role)
+
+def get_role(session) -> RedshiftRole:
+    return sess_get_obj(session, 'rsrole')
