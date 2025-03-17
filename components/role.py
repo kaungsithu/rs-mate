@@ -68,8 +68,8 @@ def mk_role_table(roles: list=None):
                 Loading((LoadingT.bars, LoadingT.lg, 'mx-4'), htmx_indicator=True),
             ),
             cls='space-y-6',
-            hx_post='/role/create',
-                hx_disabled_elt='#btn-create-role'
+            action='/role/create', method='post',
+            hx_disabled_elt='#btn-create-role'
             )
         ),
         id='new-role-modal'

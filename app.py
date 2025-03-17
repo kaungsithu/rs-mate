@@ -186,13 +186,13 @@ def get(session):
 @rt('/role-users/{role_name}')
 def get(session, role_name: str):
     users = RedshiftRole.get_role_users(role_name, get_rs(session))
-    return LabelList(users) if users else '-'
+    return BadgeList(users) if users else '-'
 
 # Get nested roles for each role
 @rt('/role-nested-roles/{role_name}')
 def get(session, role_name: str):
     nested_roles = RedshiftRole.get_role_nested_roles(role_name, get_rs(session))
-    return LabelList(nested_roles) if nested_roles else '-'
+    return BadgeList(nested_roles) if nested_roles else '-'
 
 # Show role details
 @rt('/role/{role_name}')
