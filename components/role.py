@@ -62,21 +62,20 @@ def mk_role_table(roles: list=None):
                     HelpText('Redshift role name (required)')
                 ),
                 DividerSplit(cls='my-4'),
-                DivFullySpaced(
-                    ModalCloseButton("Cancel", cls=ButtonT.default),
-                    Button('Create Role', id='btn-create-role', cls=ButtonT.primary),
-                    Loading((LoadingT.bars, LoadingT.lg, 'mx-4'), htmx_indicator=True),
-                ),
-                cls='space-y-6',
-                hx_post='/role/create',
-                hx_target="#app-area",
+            DivFullySpaced(
+                Button("Cancel", cls=ButtonT.default, data_uk_toggle="target: #new-role-modal"),
+                Button('Create Role', id='btn-create-role', cls=ButtonT.primary, data_uk_toggle="target: #new-role-modal"),
+                Loading((LoadingT.bars, LoadingT.lg, 'mx-4'), htmx_indicator=True),
+            ),
+            cls='space-y-6',
+            hx_post='/role/create',
                 hx_disabled_elt='#btn-create-role'
             )
         ),
         id='new-role-modal'
     )
 
-    card = Card(ctrls, tbl, header=card_header, id='roles-table', cls='mt-4')
+    card = Card(ctrls, tbl, header=card_header, id='roles-table', cls='w-full lg:w-4/5 mb-6')
     list_script = Script(f"new List('roles-table', {{ valueNames: {json.dumps(tbl_headers)} }})")
 
     return DivVStacked(card, list_script, new_role_modal, cls='w-full lg:w-4/5')

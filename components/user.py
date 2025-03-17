@@ -8,6 +8,12 @@ from components.common import *
 
 # ===== User list table =====
 
+def mk_user_link(user: RedshiftUser):
+    if user.user_id > 100: 
+        return A(user.user_name, href=f'/user/{user.user_id}', cls='text-blue-500')
+    else:
+        return A(user.user_name, href='#', cls=TextT.muted)
+
 # TODO: Disable updating admin user
 def mk_user_table(users: RedshiftUser=None):
     if not users:
@@ -18,10 +24,7 @@ def mk_user_table(users: RedshiftUser=None):
         rows.append(
             Tr(
                 Td(user.user_id, cls='ID'),
-                Td(A(user.user_name, 
-                    #  hx_get=f'/user/{user.user_id}', hx_target='#app-area')
-                    href=f'/user/{user.user_id}'),
-                     cls='Username text-blue-500'),
+                Td(mk_user_link(user), cls='Username'),
                 Td('✅' if user.super_user else '-'),
                 Td(
                     Loading((LoadingT.dots, LoadingT.xs), htmx_indicator=True),

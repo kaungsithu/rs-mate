@@ -53,13 +53,13 @@ def post(session, rs: Redshift):
 @rt('/user-groups/{user_id}')
 def get(session, user_id: int):
     groups = RedshiftUser.get_user_groups(user_id, get_rs(session))
-    return LabelList(groups) if groups else '-'
+    return BadgeList(groups) if groups else '-'
 
 # Get user roles for each user
 @rt('/user-roles/{user_id}')
 def get(session, user_id: int):
     roles = RedshiftUser.get_user_roles(user_id, get_rs(session))
-    return LabelList(roles) if roles else '-'
+    return BadgeList(roles) if roles else '-'
 
 
 

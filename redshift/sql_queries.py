@@ -25,7 +25,7 @@ GET_ALL_USERS = """
                         useconfig                       AS session_defaults,
                         useconnlimit                    AS connection_limit
                     FROM pg_user_info
-                    ORDER BY usename;
+                    ORDER BY usesysid;
                 """
 
 

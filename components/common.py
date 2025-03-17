@@ -41,6 +41,9 @@ def mk_nav_bar(nav_btns=True, active_btn=None):
 def LabelList(labels: list):
     return Span(*[Label(l, cls=(TextT.sm, 'mx-1')) for l in labels])
 
+def BadgeList(labels: list):
+     return Span(*[Span(l, cls=(TextT.sm, 'uk-badge', 'm-1')) for l in labels])
+
 # Options for select with same label and value
 def SelectOptions(items: list):
     return [Option(item, value=item) for item in items]
