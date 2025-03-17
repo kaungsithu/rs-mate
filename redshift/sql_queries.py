@@ -126,48 +126,87 @@ GET_ROLE_NESTED_ROLES = """
 
 GET_ROLE_PRIVILEGES = """
                     SELECT 
-                        namespace_name, 
-                        relation_name, 
-                        relation_type, 
-                        privilege_type, 
-                        admin_option 
-                    FROM svv_relation_privileges 
-                    WHERE identity_name = %s AND identity_type = 'role';
+                        p.namespace_name, 
+                        p.relation_name, 
+                        (CASE WHEN t.table_type = 'BASE TABLE' THEN 'TABLE'
+                            ELSE 'VIEW' 
+                        END) AS relation_type, 
+                        p.privilege_type, 
+                        p.admin_option 
+                    FROM svv_relation_privileges p
+                    INNER JOIN svv_tables t 
+                        ON t.table_schema = p.namespace_name
+                        AND t.table_name = p.relation_name
+                    WHERE t.table_catalog = 'dev'
+                      AND t.table_schema NOT LIKE 'pg_%' 
+                      AND t.table_schema NOT LIKE 'information_schema'
+                      AND t.table_type IN ('BASE TABLE', 'VIEW')
+                      AND p.identity_type = 'role'
+                      AND p.identity_name = %s
+                    UNION ALL 
+                    SELECT 
+                        p.namespace_name, 
+                        p.function_name, 
+                        (CASE WHEN f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION') THEN 'FUNCTION'
+                            ELSE 'PROCEDURE' 
+                        END) AS relation_type, 
+                        p.privilege_type, 
+                        p.admin_option 
+                    FROM svv_function_privileges p
+                    INNER JOIN svv_redshift_functions f 
+                        ON f.schema_name = p.namespace_name
+                        AND f.function_name = p.function_name
+                    WHERE f.database_name = 'dev'
+                      AND f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION', 'STORED PROCEDURE')
+                      AND f.schema_name NOT LIKE 'pg_%'
+                      AND f.schema_name NOT LIKE 'information_schema'
+                      AND identity_type = 'role'
+                      AND identity_name = %s;
                 """
 
 GET_ALL_SCHEMAS = """
                     SELECT schema_name 
-                    FROM information_schema.schemata 
+                    FROM svv_all_schemas
                     WHERE schema_name NOT LIKE 'pg_%' 
-                    AND schema_name NOT LIKE 'information_schema';
+                      AND schema_name NOT LIKE 'information_schema'
+                      AND database_name = 'dev'
+                    ORDER BY schema_name;
                 """
 
 GET_SCHEMA_TABLES = """
                     SELECT table_name 
-                    FROM information_schema.tables 
-                    WHERE table_schema = %s 
-                    AND table_type = 'BASE TABLE';
+                    FROM svv_tables
+                    WHERE table_catalog = 'dev'
+                      AND table_schema = %s 
+                      AND table_type = 'BASE TABLE'
+                    ORDER BY table_name;
                 """
 
 GET_SCHEMA_VIEWS = """
                     SELECT table_name 
-                    FROM information_schema.tables 
-                    WHERE table_schema = %s 
-                    AND table_type = 'VIEW';
+                    FROM svv_tables
+                    WHERE table_catalog = 'dev'
+                      AND table_schema = %s 
+                      AND table_type = 'VIEW'
+                    ORDER BY table_name;
                 """
 
 GET_SCHEMA_FUNCTIONS = """
-                    SELECT routine_name 
-                    FROM information_schema.routines 
-                    WHERE routine_schema = %s 
-                    AND routine_type = 'FUNCTION';
+                    SELECT function_name 
+                    FROM svv_redshift_functions
+                    WHERE database_name = 'dev'
+                      AND schema_name = %s 
+                      AND function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION')
+                    ORDER BY function_name;
                 """
 
 GET_SCHEMA_PROCEDURES = """
-                    SELECT routine_name 
-                    FROM information_schema.routines 
-                    WHERE routine_schema = %s 
-                    AND routine_type = 'PROCEDURE';
+                    SELECT function_name 
+                    FROM svv_redshift_functions
+                    WHERE database_name = 'dev'
+                      AND schema_name = %s 
+                      AND function_type = 'STORED PROCEDURE'
+                    ORDER BY function_name;
                 """
 
 # ===== Privileges =====

@@ -252,9 +252,9 @@ def mk_role_privileges(role: RedshiftRole, schemas: list):
         # Create schema content
         schema_content = Li(
             Div(
-                tables_tbl if tables_tbl else Div(P('No tables in this schema')),
-                views_tbl if views_tbl else Div(P('No views in this schema')),
-                funcs_tbl if funcs_tbl else Div(P('No functions or procedures in this schema')),
+                tables_tbl if tables_tbl else Div(P('No table privileges in this schema')),
+                views_tbl if views_tbl else Div(P('No view privileges in this schema')),
+                funcs_tbl if funcs_tbl else Div(P('No function or procedure privileges in this schema')),
                 Button('Save Privileges', id=f'btn-save-privs-{schema}', cls=ButtonT.primary),
                 Loading((LoadingT.bars, LoadingT.lg, 'mx-4'), htmx_indicator=True),
                 cls='space-y-4',
