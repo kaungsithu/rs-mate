@@ -1,14 +1,13 @@
-from ast import Tuple
 from dataclasses import dataclass, asdict, field
 from cryptography.fernet import Fernet
-from nbclient import execute
 import redshift_connector
 import json
+import logging
 import os
-from typing import Optional
+from typing import Optional, Tuple
 from .sql_queries import *
 
-# TODO: Add proper logging mechnism instead of prints
+logger = logging.getLogger(__name__)
 
 redshift_connector.paramstyle = 'pyformat'
 
@@ -54,7 +53,7 @@ class Redshift:
         try:
             return Redshift(**json.loads(Redshift.get_fernet().decrypt(session.get('dbinfo').encode()).decode()))
         except Exception as e:
-            print(e)
+            logger.error("Failed to load db info from session: %s", e)
             return None
 
     def run_sql(self, query: str, args=None, fetch=True) -> Tuple | int | None:
@@ -72,21 +71,21 @@ class Redshift:
                         conn.commit()
                         return cursor.rowcount
         except Exception as e:
-            print(f"Database error: {e}")
+            logger.error("Database error: %s", e)
             return None 
 
     def execute_query(self, query: str, args=None) -> Tuple | None:
         try:
             return self.run_sql(query, args, fetch=True)
         except Exception as e:
-            print(e)
-            return None 
+            logger.error("Query execution error: %s", e)
+            return None
 
     def execute_cmd(self, query: str, args=None) -> bool:
         try:
             return self.run_sql(query, args, fetch=False) == -1
         except Exception as e:
-            print(e)
+            logger.error("Command execution error: %s", e)
             return False
 
     def test_conn(self) -> bool:
@@ -112,7 +111,29 @@ class Redshift:
     def get_schema_procedures(self, schema: str) -> list:
         results = self.execute_query(GET_SCHEMA_PROCEDURES, (self.name, schema,))
         return [row[0] for row in results] if results else []
-        
+
+    def get_all_schema_relations(self, schemas: list = None) -> tuple:
+        """Fetch all schemas and their relations (tables, views, functions, procedures).
+
+        Args:
+            schemas: Optional pre-fetched list of schema names. If None, fetches them.
+
+        Returns:
+            tuple: (schemas, schema_relations) where schema_relations is a dict
+                   mapping schema names to their relations.
+        """
+        if schemas is None:
+            schemas = self.get_all_schemas()
+        schema_relations = {}
+        for schema in schemas:
+            schema_relations[schema] = {
+                'tables': self.get_schema_tables(schema),
+                'views': self.get_schema_views(schema),
+                'functions': self.get_schema_functions(schema),
+                'procedures': self.get_schema_procedures(schema),
+            }
+        return schemas, schema_relations
+
     def determine_object_type(self, schema_name: str, object_name: str, privilege_type: str, schema_relations: dict) -> str:
         """
         Determine the type of database object based on schema relations and privilege type

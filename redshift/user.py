@@ -1,9 +1,10 @@
+import logging
 import redshift.sql_queries as sql
 from redshift.database import Redshift
 from dataclasses import dataclass, field
 from typing import Optional, List
 
-# TODO: Groups and roles update might be overwriting each other values.
+logger = logging.getLogger(__name__)
 @dataclass
 class RedshiftUser:
     user_name: str 
@@ -47,8 +48,8 @@ class RedshiftUser:
                          'session_defaults', 'connection_limit']
 
             return cls.map_results(results, cols) if results else []
-        except Exception as e: 
-            print(e)
+        except Exception as e:
+            logger.error("Error getting all users: %s", e)
             return []
 
     @classmethod
@@ -84,7 +85,7 @@ class RedshiftUser:
             
             return None
         except Exception as e:
-            print(f"Error creating Redshift user: {e}")
+            logger.error("Error creating Redshift user: %s", e)
             return None
 
     @staticmethod
@@ -129,7 +130,7 @@ class RedshiftUser:
                     
             return privileges
         except Exception as e:
-            print(f"Error getting privileges for user {user_name}: {e}")
+            logger.error("Error getting privileges for user %s: %s", user_name, e)
             return []
 
     @staticmethod
@@ -240,7 +241,7 @@ class RedshiftUser:
             query = RedshiftUser.get_alt_user_sql(ori_user, self)
             return rs.execute_cmd(query)
         except Exception as e:
-            print(f"Error updating redshift user: {e}")
+            logger.error("Error updating redshift user: %s", e)
             return False
 
 # ===== User Groups ===== 
@@ -252,7 +253,7 @@ class RedshiftUser:
             results = rs.execute_query(sql.GET_ALL_GROUPS)
             return [group[0] for group in results] if results else []
         except Exception as e:
-            print(e)
+            logger.error("Error getting all groups: %s", e)
             return []
 
     @staticmethod
@@ -280,7 +281,7 @@ class RedshiftUser:
             queries = RedshiftUser.get_save_groups_sqls(self.user_name, ori_groups, self.groups)
             return queries is None or all(map(rs.execute_cmd, queries))
         except Exception as e:
-            print(f"error updating redshift user groups: {e}")
+            logger.error("Error updating redshift user groups: %s", e)
             return False
 
 # ===== User Roles =====
@@ -291,7 +292,7 @@ class RedshiftUser:
             results = rs.execute_query(sql.GET_ALL_ROLES, rs)
             return [role[1] for role in results] if results else []
         except Exception as e:
-            print(e)
+            logger.error("Error getting all roles: %s", e)
             return []
 
     @staticmethod
@@ -319,7 +320,7 @@ class RedshiftUser:
             queries = RedshiftUser.get_save_roles_sqls(self.user_name, ori_roles, self.roles)
             return queries is None or all(map(rs.execute_cmd, queries))
         except Exception as e:
-            print(f"error updating redshift user roles: {e}")
+            logger.error("Error updating redshift user roles: %s", e)
             return False
             
     def delete(self, rs: Redshift) -> bool:
@@ -339,7 +340,7 @@ class RedshiftUser:
             # Execute SQL
             return rs.execute_cmd(delete_sql)
         except Exception as e:
-            print(f"Error deleting user {self.user_name}: {e}")
+            logger.error("Error deleting user %s: %s", self.user_name, e)
             return False
 
     # ===== User Privileges =====
@@ -383,7 +384,7 @@ class RedshiftUser:
                 
             return success
         except Exception as e:
-            print(f"Error granting privilege to {self.user_name}: {e}")
+            logger.error("Error granting privilege to %s: %s", self.user_name, e)
             return False
     
     def revoke_privilege(self, schema_name: str, object_name: str, object_type: str, 
@@ -425,5 +426,5 @@ class RedshiftUser:
                 
             return success
         except Exception as e:
-            print(f"Error revoking privilege from {self.user_name}: {e}")
+            logger.error("Error revoking privilege from %s: %s", self.user_name, e)
             return False

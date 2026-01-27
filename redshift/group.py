@@ -1,7 +1,10 @@
+import logging
 import redshift.sql_queries as sql
 from redshift.database import Redshift
 from dataclasses import dataclass, field
 from typing import Optional, List, Set
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class RedshiftGroup:
@@ -37,7 +40,7 @@ class RedshiftGroup:
                 
             return groups
         except Exception as e:
-            print(f"Error getting all groups: {e}")
+            logger.error("Error getting all groups: %s", e)
             return []
     
     @classmethod
@@ -66,7 +69,7 @@ class RedshiftGroup:
             
             return group
         except Exception as e:
-            print(f"Error getting group {group_name}: {e}")
+            logger.error("Error getting group %s: %s", group_name, e)
             return None
     
     @staticmethod
@@ -85,7 +88,7 @@ class RedshiftGroup:
             results = rs.execute_query(sql.GET_GROUP_USERS, (group_name,))
             return [row[0] for row in results] if results else []
         except Exception as e:
-            print(f"Error getting users for group {group_name}: {e}")
+            logger.error("Error getting users for group %s: %s", group_name, e)
             return []
     
     def add_user(self, user_name: str, rs: Redshift) -> bool:
@@ -111,7 +114,7 @@ class RedshiftGroup:
                 
             return success
         except Exception as e:
-            print(f"Error adding user {user_name} to group {self.group_name}: {e}")
+            logger.error("Error adding user %s to group %s: %s", user_name, self.group_name, e)
             return False
     
     def remove_user(self, user_name: str, rs: Redshift) -> bool:
@@ -137,7 +140,7 @@ class RedshiftGroup:
                 
             return success
         except Exception as e:
-            print(f"Error removing user {user_name} from group {self.group_name}: {e}")
+            logger.error("Error removing user %s from group %s: %s", user_name, self.group_name, e)
             return False
     
     def update_users(self, new_users: set, rs: Redshift) -> bool:
@@ -169,7 +172,7 @@ class RedshiftGroup:
                     
             return True
         except Exception as e:
-            print(f"Error updating users for group {self.group_name}: {e}")
+            logger.error("Error updating users for group %s: %s", self.group_name, e)
             return False
     
     @classmethod
@@ -195,7 +198,7 @@ class RedshiftGroup:
                 return cls(group_name=group_name)
             return None
         except Exception as e:
-            print(f"Error creating group {group_name}: {e}")
+            logger.error("Error creating group %s: %s", group_name, e)
             return None
     
     def delete(self, rs: Redshift) -> bool:
@@ -215,5 +218,5 @@ class RedshiftGroup:
             # Execute SQL
             return rs.execute_cmd(delete_sql)
         except Exception as e:
-            print(f"Error deleting group {self.group_name}: {e}")
+            logger.error("Error deleting group %s: %s", self.group_name, e)
             return False

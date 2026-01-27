@@ -1,7 +1,10 @@
+import logging
 import redshift.sql_queries as sql
 from redshift.database import Redshift
 from dataclasses import dataclass, field
 from typing import Optional, List, Set
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class RedshiftRole:
@@ -50,7 +53,7 @@ class RedshiftRole:
                 
             return roles
         except Exception as e:
-            print(f"Error getting all roles: {e}")
+            logger.error("Error getting all roles: %s", e)
             return []
     
     @classmethod
@@ -85,7 +88,7 @@ class RedshiftRole:
             
             return role
         except Exception as e:
-            print(f"Error getting role {role_name}: {e}")
+            logger.error("Error getting role %s: %s", role_name, e)
             return None
     
     @staticmethod
@@ -109,7 +112,7 @@ class RedshiftRole:
                     
             return role_users
         except Exception as e:
-            print(f"Error getting role users: {e}")
+            logger.error("Error getting role users: %s", e)
             return {}
     
     @staticmethod
@@ -128,7 +131,7 @@ class RedshiftRole:
             results = rs.execute_query(sql.GET_ROLE_USERS, (role_name,))
             return [row[0] for row in results] if results else []
         except Exception as e:
-            print(f"Error getting users for role {role_name}: {e}")
+            logger.error("Error getting users for role %s: %s", role_name, e)
             return []
     
     @staticmethod
@@ -152,7 +155,7 @@ class RedshiftRole:
                     
             return role_nested_roles
         except Exception as e:
-            print(f"Error getting nested roles: {e}")
+            logger.error("Error getting nested roles: %s", e)
             return {}
     
     @staticmethod
@@ -171,7 +174,7 @@ class RedshiftRole:
             results = rs.execute_query(sql.GET_ROLE_NESTED_ROLES, (role_name,))
             return [row[0] for row in results] if results else []
         except Exception as e:
-            print(f"Error getting nested roles for role {role_name}: {e}")
+            logger.error("Error getting nested roles for role %s: %s", role_name, e)
             return []
     
     @staticmethod
@@ -203,7 +206,7 @@ class RedshiftRole:
                     
             return privileges
         except Exception as e:
-            print(f"Error getting privileges for role {role_name}: {e}")
+            logger.error("Error getting privileges for role %s: %s", role_name, e)
             return []
     
     @classmethod
@@ -229,7 +232,7 @@ class RedshiftRole:
                 return cls(role_name=role_name)
             return None
         except Exception as e:
-            print(f"Error creating role {role_name}: {e}")
+            logger.error("Error creating role %s: %s", role_name, e)
             return None
     
     def delete(self, rs: Redshift) -> bool:
@@ -253,7 +256,7 @@ class RedshiftRole:
             # Execute SQL
             return rs.execute_cmd(delete_sql)
         except Exception as e:
-            print(f"Error deleting role {self.role_name}: {e}")
+            logger.error("Error deleting role %s: %s", self.role_name, e)
             return False
     
     def add_nested_role(self, nested_role_name: str, rs: Redshift) -> bool:
@@ -279,7 +282,7 @@ class RedshiftRole:
                 
             return success
         except Exception as e:
-            print(f"Error adding nested role {nested_role_name} to {self.role_name}: {e}")
+            logger.error("Error adding nested role %s to %s: %s", nested_role_name, self.role_name, e)
             return False
     
     def remove_nested_role(self, nested_role_name: str, rs: Redshift) -> bool:
@@ -305,7 +308,7 @@ class RedshiftRole:
                 
             return success
         except Exception as e:
-            print(f"Error removing nested role {nested_role_name} from {self.role_name}: {e}")
+            logger.error("Error removing nested role %s from %s: %s", nested_role_name, self.role_name, e)
             return False
     
     def update_nested_roles(self, new_nested_roles: set, rs: Redshift) -> bool:
@@ -337,7 +340,7 @@ class RedshiftRole:
                     
             return True
         except Exception as e:
-            print(f"Error updating nested roles for {self.role_name}: {e}")
+            logger.error("Error updating nested roles for %s: %s", self.role_name, e)
             return False
     
     def grant_privilege(self, schema_name: str, object_name: str, object_type: str, 
@@ -380,7 +383,7 @@ class RedshiftRole:
                 
             return success
         except Exception as e:
-            print(f"Error granting privilege to {self.role_name}: {e}")
+            logger.error("Error granting privilege to %s: %s", self.role_name, e)
             return False
     
     def revoke_privilege(self, schema_name: str, object_name: str, object_type: str, 
@@ -422,5 +425,5 @@ class RedshiftRole:
                 
             return success
         except Exception as e:
-            print(f"Error revoking privilege from {self.role_name}: {e}")
+            logger.error("Error revoking privilege from %s: %s", self.role_name, e)
             return False

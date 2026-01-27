@@ -1,9 +1,12 @@
+import logging
 from typing import Any
 import pickle
 from redshift.database import Redshift
 from redshift.user import RedshiftUser
 from redshift.role import RedshiftRole
 from redshift.group import RedshiftGroup
+
+logger = logging.getLogger(__name__)
 
 
 __all__ = [
@@ -17,14 +20,14 @@ def sess_store_obj(session: dict, key: str, obj:Any):
     try:
         session[key] = pickle.dumps(obj).hex()
     except Exception as e:
-        print(f'Error pickling {key}: {e}')
+        logger.error("Error pickling %s: %s", key, e)
 
 def sess_get_obj(session: dict, key: str):
     'get pickled object from session'
     try:
         return pickle.loads(bytes.fromhex(session.get(key)))
     except Exception as e:
-        print(f'Error unpickling {key}: {e}')
+        logger.error("Error unpickling %s: %s", key, e)
         return None
 
 def set_rs(session: dict, rs: Redshift):

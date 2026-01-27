@@ -1,6 +1,5 @@
 from fasthtml.common import *
 from fasthtml.common import CheckboxX as fhCheckboxX
-from requests import session
 from redshift.database import Redshift
 from redshift.user import RedshiftUser
 from redshift.role import RedshiftRole
@@ -9,21 +8,16 @@ from redshift import sql_queries as sql
 from helpers.session_helper import *
 from monsterui.all import *
 import json
+import logging
 from components import *
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # listjs
 listjs = Script(src='https://cdnjs.cloudflare.com/ajax/libs/list.js/2.3.1/list.min.js')
 hdrs = (Theme.violet.headers(mode='light'), listjs)
 app, rt = fast_app(hdrs=hdrs, debug=True, live=True)
 setup_toasts(app)
-
-# Helper function to store role in session
-def set_role(session, role: RedshiftRole):
-    sess_store_obj(session, 'rsrole', role)
-
-# Helper function to get role from session
-def get_role(session) -> RedshiftRole:
-    return sess_get_obj(session, 'rsrole')
 
 # Home, DB info form
 @rt('/')
@@ -47,11 +41,6 @@ def post(session, rs: Redshift):
     session['active_btn'] = 'users'
 
     return RedirectResponse('/users', status_code=303)
-    # return Div(
-    #     mk_nav_bar(session),
-    #     Div(mk_user_table(session), id='content-area'),
-    # )
-
 
 @rt('/user-groups/{user_id}')
 def get(session, user_id: int):
@@ -143,36 +132,12 @@ def get(session, user_id: int):
         user = RedshiftUser.get_user(user_id, rs)
         all_groups = RedshiftUser.get_all_groups(rs)
         all_roles = RedshiftUser.get_all_roles(rs)
-        
-        # Get all schemas
-        schemas = rs.get_all_schemas()
-        session['schemas'] = schemas
-        
-        # Fetch all relations for all schemas
-        schema_relations = {}
-        for schema in schemas:
-            schema_relations[schema] = {
-                'tables': [],
-                'views': [],
-                'functions': [],
-                'procedures': []
-            }
-            
-            # Get tables for the schema
-            schema_relations[schema]['tables'] = rs.get_schema_tables(schema)
-            
-            # Get views for the schema
-            schema_relations[schema]['views'] = rs.get_schema_views(schema)
-            
-            # Get functions for the schema
-            schema_relations[schema]['functions'] = rs.get_schema_functions(schema)
 
-            # Get procedures for the schema
-            schema_relations[schema]['procedures'] = rs.get_schema_procedures(schema)
-        
+        schemas, schema_relations = rs.get_all_schema_relations()
+        session['schemas'] = schemas
+
         if user:
             set_user(session, user)
-            # Store schema relations in session
             session['schema_relations'] = schema_relations
             return MainLayout(mk_user_form(user, all_groups, all_roles, schemas, schema_relations), active_btn='users')
         else:
@@ -345,18 +310,7 @@ def post(session, frm_data: dict):
     # Get schema relations from session or fetch if not available
     schema_relations = session.get('schema_relations', {})
     if not schema_relations:
-        # Fetch all schemas
-        schemas = rs.get_all_schemas()
-        
-        # Fetch all relations for all schemas
-        for schema in schemas:
-            schema_relations[schema] = {
-                'tables': rs.get_schema_tables(schema),
-                'views': rs.get_schema_views(schema),
-                'functions': rs.get_schema_functions(schema),
-                'procedures': rs.get_schema_procedures(schema)
-            }
-        # Store in session for future use
+        _, schema_relations = rs.get_all_schema_relations()
         session['schema_relations'] = schema_relations
     
     # Process form data to extract selected privileges
@@ -492,36 +446,12 @@ def get(session, role_name: str):
         rs = get_rs(session)
         role = RedshiftRole.get_role(role_name, rs)
         all_roles = RedshiftRole.get_all(rs)
-        
-        # Get all schemas
-        schemas = rs.get_all_schemas()
-        session['schemas'] = schemas
-        
-        # Fetch all relations for all schemas
-        schema_relations = {}
-        for schema in schemas:
-            schema_relations[schema] = {
-                'tables': [],
-                'views': [],
-                'functions': [],
-                'procedures': []
-            }
-            
-            # Get tables for the schema
-            schema_relations[schema]['tables'] = rs.get_schema_tables(schema)
-            
-            # Get views for the schema
-            schema_relations[schema]['views'] = rs.get_schema_views(schema)
-            
-            # Get functions for the schema
-            schema_relations[schema]['functions'] = rs.get_schema_functions(schema)
 
-            # Get procedures for the schema
-            schema_relations[schema]['procedures'] = rs.get_schema_procedures(schema)
-        
+        schemas, schema_relations = rs.get_all_schema_relations()
+        session['schemas'] = schemas
+
         if role:
             set_role(session, role)
-            # Store schema relations in session
             session['schema_relations'] = schema_relations
             return MainLayout(mk_role_form(role, all_roles, schemas, schema_relations), active_btn='roles')
         else:
@@ -697,13 +627,10 @@ def post(session, schema_name: str, frm_data: dict):
             cls="uk-margin-small"
         )
     
-    # Create privilege checkboxes for the view
+    # Create privilege checkboxes for the view (views only support SELECT)
     return Tr(
                 Td(view_name),
                 Td(fhCheckboxX(id=f'priv-{schema_name}-{view_name}-SELECT', cls='uk-checkbox')),
-                Td(fhCheckboxX(id=f'priv-{schema_name}-{view_name}-INSERT', cls='uk-checkbox')),
-                Td(fhCheckboxX(id=f'priv-{schema_name}-{view_name}-UPDATE', cls='uk-checkbox')),
-                Td(fhCheckboxX(id=f'priv-{schema_name}-{view_name}-DELETE', cls='uk-checkbox')),
                 id=existing_view_id
             )
 
@@ -755,18 +682,7 @@ def post(session, frm_data: dict):
     # Get schema relations from session or fetch if not available
     schema_relations = session.get('schema_relations', {})
     if not schema_relations:
-        # Fetch all schemas
-        schemas = rs.get_all_schemas()
-        
-        # Fetch all relations for all schemas
-        for schema in schemas:
-            schema_relations[schema] = {
-                'tables': rs.get_schema_tables(schema),
-                'views': rs.get_schema_views(schema),
-                'functions': rs.get_schema_functions(schema),
-                'procedures': rs.get_schema_procedures(schema)
-            }
-        # Store in session for future use
+        _, schema_relations = rs.get_all_schema_relations()
         session['schema_relations'] = schema_relations
     
     # Process form data to extract selected privileges

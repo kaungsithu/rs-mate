@@ -355,17 +355,15 @@ def get_schema_content(role: RedshiftRole, schema: str, schema_relations=None):
     return mk_schema_content(schema, schema_privileges, schema_relations)
 
 def mk_schema_nav(role_name:str, schemas: list, active_schema: str):
-    # Create schema nav items
-    # TODO: Active class not properly set.
     return NavContainer(
         *[Li(
             A(s),
             hx_get=f'/role/schema-content/{role_name}/{s}',
-            hx_target='#schema-content', 
+            hx_target='#schema-content',
             hx_swap='outerHTML',
             hx_trigger='click',
             hx_disabled_elt=f'input, button',
-            # cls=f"{'uk-active' if s == active_schema else ''}"
+            cls='uk-active' if s == active_schema else '',
         ) for s in schemas],
         cls=(NavT.secondary, 'border-r'),
         id='schema-nav'
