@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  redshift-emulator:
+    image: postgres:14-alpine
+    container_name: rs-mate-redshift-emulator
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: Admin123!
+      POSTGRES_DB: dev
+    ports:
+      - "5439:5432"
+    volumes:
+      - ./tests/fixtures/init_schema.sql:/docker-entrypoint-initdb.d/01_init_schema.sql
+      - ./tests/fixtures/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql
+      - redshift_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redshift_data:
