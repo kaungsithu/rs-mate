@@ -1,5 +1,6 @@
 import redshift.sql_queries as sql
 from redshift.database import Redshift
+from redshift.sanitize import validate_identifier, escape_literal
 from dataclasses import dataclass, field
 from typing import Optional, List
 
@@ -55,35 +56,41 @@ class RedshiftUser:
     def create_user(cls, u: 'RedshiftUser', rs: Redshift) -> bool:
         """Create a new user in Redshift"""
         try:
+            # Validate and sanitize inputs
+            user_name = validate_identifier(u.user_name)
+            password = escape_literal(u.password)
+
             # Build the CREATE USER SQL statement
-            create_sql = f"CREATE USER {u.user_name} PASSWORD '{u.password}'"
-            
+            create_sql = f"CREATE USER {user_name} PASSWORD {password}"
+
             # Add user properties
             create_sql += f" {'' if u.super_user else 'NO'}CREATEUSER"
             create_sql += f" {'' if u.can_create_db else 'NO'}CREATEDB"
-                
+
             if u.connection_limit and u.connection_limit > 0:
                 create_sql += f" CONNECTION LIMIT {u.connection_limit}"
-                
+
             if u.session_timeout and u.session_timeout > 0:
                 create_sql += f" SESSION TIMEOUT {u.session_timeout}"
-                
+
             if u.syslog_access:
-                create_sql += f" SYSLOG ACCESS {u.syslog_access}"
-                
+                syslog = validate_identifier(u.syslog_access)
+                create_sql += f" SYSLOG ACCESS {syslog}"
+
             if u.password_expiry:
-                create_sql += f" VALID UNTIL '{u.password_expiry}'"
-                
+                expiry = escape_literal(u.password_expiry)
+                create_sql += f" VALID UNTIL {expiry}"
+
             create_sql += ";"
-            
+
             # Execute the SQL command
             if rs.execute_cmd(create_sql):
                 # Get the newly created user to get the user_id
                 user = cls.get_user(-1, rs, user_name=u.user_name, all_info=False)
                 return user if user else None
-            
+
             return None
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error creating Redshift user: {e}")
             return None
 
@@ -165,7 +172,7 @@ class RedshiftUser:
         Generates an ALTER USER statement based on the differences between original and updated RedshiftUser objects.
 
         ALTER USER username [ WITH ] option [, ... ]
-        
+
         where option is
 
         CREATEDB | NOCREATEDB
@@ -191,7 +198,8 @@ class RedshiftUser:
         if ori_user.user_id != upd_user.user_id:
             raise ValueError("User IDs must match.")
 
-        alter_statement = f"ALTER USER {upd_user.user_name}"
+        user_name = validate_identifier(upd_user.user_name)
+        alter_statement = f"ALTER USER {user_name}"
         changes = []
 
         if ori_user.super_user != upd_user.super_user:
@@ -207,7 +215,8 @@ class RedshiftUser:
             if upd_user.password_expiry is None or upd_user.password_expiry.strip() == '':
                 changes.append("VALID UNTIL 'infinity'")
             else:
-                changes.append(f"VALID UNTIL '{upd_user.password_expiry.strip()}'")
+                expiry = escape_literal(upd_user.password_expiry.strip())
+                changes.append(f"VALID UNTIL {expiry}")
 
         if ori_user.connection_limit != upd_user.connection_limit:
             if upd_user.connection_limit is None or upd_user.connection_limit == 0:
@@ -219,7 +228,8 @@ class RedshiftUser:
             if upd_user.syslog_access is None:
                 changes.append('SYSLOG ACCESS RESTRICTED')
             else:
-                changes.append(f'SYSLOG ACCESS {upd_user.syslog_access}')
+                syslog = validate_identifier(upd_user.syslog_access)
+                changes.append(f'SYSLOG ACCESS {syslog}')
 
         if ori_user.session_timeout != upd_user.session_timeout:
             if upd_user.session_timeout is None or upd_user.session_timeout == 0:
@@ -265,10 +275,13 @@ class RedshiftUser:
             added_groups = upd_group_set - ori_group_set
             removed_groups = ori_group_set - upd_group_set
 
+            user = validate_identifier(user_name)
             for group in added_groups:
-                changes.append(f'ALTER GROUP {group} ADD USER {user_name};')
+                group_name = validate_identifier(group)
+                changes.append(f'ALTER GROUP {group_name} ADD USER {user};')
             for group in removed_groups:
-                changes.append(f'ALTER GROUP {group} DROP USER {user_name};')
+                group_name = validate_identifier(group)
+                changes.append(f'ALTER GROUP {group_name} DROP USER {user};')
 
             if not changes:
                 return None  # No changes detected
@@ -304,10 +317,13 @@ class RedshiftUser:
             added_roles = upd_role_set - ori_role_set
             removed_roles = ori_role_set - upd_role_set
 
+            user = validate_identifier(user_name)
             for role in added_roles:
-                changes.append(f'GRANT ROLE {role} TO {user_name};')
+                role_name = validate_identifier(role)
+                changes.append(f'GRANT ROLE {role_name} TO {user};')
             for role in removed_roles:
-                changes.append(f'REVOKE ROLE {role} FROM {user_name};')
+                role_name = validate_identifier(role)
+                changes.append(f'REVOKE ROLE {role_name} FROM {user};')
 
             if not changes:
                 return None  # No changes detected
@@ -325,52 +341,62 @@ class RedshiftUser:
     def delete(self, rs: Redshift) -> bool:
         """
         Delete this user from Redshift
-        
+
         Args:
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Validate and sanitize username
+            user_name = validate_identifier(self.user_name)
+
             # Delete user SQL
-            delete_sql = f"DROP USER {self.user_name};"
-            
+            delete_sql = f"DROP USER {user_name};"
+
             # Execute SQL
             return rs.execute_cmd(delete_sql)
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error deleting user {self.user_name}: {e}")
             return False
 
     # ===== User Privileges =====
-    def grant_privilege(self, schema_name: str, object_name: str, object_type: str, 
+    def grant_privilege(self, schema_name: str, object_name: str, object_type: str,
                        privilege_type: str, rs: Redshift) -> bool:
         """
         Grant a privilege to this user
-        
+
         Args:
             schema_name: The name of the schema
             object_name: The name of the object
             object_type: The type of the object (TABLE, VIEW, FUNCTION, PROCEDURE)
             privilege_type: The type of privilege (SELECT, INSERT, UPDATE, DELETE, EXECUTE)
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Validate and sanitize identifiers
+            schema = validate_identifier(schema_name)
+            obj_name = validate_identifier(object_name)
+            obj_type = validate_identifier(object_type)
+            priv_type = validate_identifier(privilege_type)
+            user = validate_identifier(self.user_name)
+
             # Grant privilege SQL
-            if object_type.upper() in ['TABLE', 'VIEW']:
-                grant_sql = f"GRANT {privilege_type} ON {schema_name}.{object_name} TO {self.user_name};"
-            elif object_type.upper() in ['FUNCTION', 'PROCEDURE']:
-                grant_sql = f"GRANT EXECUTE ON {object_type} {schema_name}.{object_name} TO {self.user_name};"
+            if obj_type.upper() in ['TABLE', 'VIEW']:
+                grant_sql = f"GRANT {priv_type} ON {schema}.{obj_name} TO {user};"
+            elif obj_type.upper() in ['FUNCTION', 'PROCEDURE']:
+                grant_sql = f"GRANT EXECUTE ON {obj_type} {schema}.{obj_name} TO {user};"
             else:
                 # Schema level privilege
-                grant_sql = f"GRANT {privilege_type} ON SCHEMA {schema_name} TO {self.user_name};"
-            
+                grant_sql = f"GRANT {priv_type} ON SCHEMA {schema} TO {user};"
+
             # Execute SQL
             success = rs.execute_cmd(grant_sql)
-            
+
             if success:
                 # Add to privileges list
                 self.privileges.append({
@@ -380,40 +406,47 @@ class RedshiftUser:
                     'privilege_type': privilege_type,
                     'is_grantable': False
                 })
-                
+
             return success
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error granting privilege to {self.user_name}: {e}")
             return False
     
-    def revoke_privilege(self, schema_name: str, object_name: str, object_type: str, 
+    def revoke_privilege(self, schema_name: str, object_name: str, object_type: str,
                         privilege_type: str, rs: Redshift) -> bool:
         """
         Revoke a privilege from this user
-        
+
         Args:
             schema_name: The name of the schema
             object_name: The name of the object
             object_type: The type of the object (TABLE, VIEW, FUNCTION, PROCEDURE)
             privilege_type: The type of privilege (SELECT, INSERT, UPDATE, DELETE, EXECUTE)
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Validate and sanitize identifiers
+            schema = validate_identifier(schema_name)
+            obj_name = validate_identifier(object_name)
+            obj_type = validate_identifier(object_type)
+            priv_type = validate_identifier(privilege_type)
+            user = validate_identifier(self.user_name)
+
             # Revoke privilege SQL
-            if object_type.upper() in ['TABLE', 'VIEW']:
-                revoke_sql = f"REVOKE {privilege_type} ON {schema_name}.{object_name} FROM {self.user_name};"
-            elif object_type.upper() in ['FUNCTION', 'PROCEDURE']:
-                revoke_sql = f"REVOKE EXECUTE ON {object_type} {schema_name}.{object_name} FROM {self.user_name};"
+            if obj_type.upper() in ['TABLE', 'VIEW']:
+                revoke_sql = f"REVOKE {priv_type} ON {schema}.{obj_name} FROM {user};"
+            elif obj_type.upper() in ['FUNCTION', 'PROCEDURE']:
+                revoke_sql = f"REVOKE EXECUTE ON {obj_type} {schema}.{obj_name} FROM {user};"
             else:
                 # Schema level privilege
-                revoke_sql = f"REVOKE {privilege_type} ON SCHEMA {schema_name} FROM {self.user_name};"
-            
+                revoke_sql = f"REVOKE {priv_type} ON SCHEMA {schema} FROM {user};"
+
             # Execute SQL
             success = rs.execute_cmd(revoke_sql)
-            
+
             if success:
                 # Remove from privileges list
                 self.privileges = [p for p in self.privileges if not (
@@ -422,8 +455,8 @@ class RedshiftUser:
                     p['object_type'] == object_type and
                     p['privilege_type'] == privilege_type
                 )]
-                
+
             return success
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error revoking privilege from {self.user_name}: {e}")
             return False

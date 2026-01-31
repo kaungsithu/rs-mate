@@ -1,5 +1,6 @@
 import redshift.sql_queries as sql
 from redshift.database import Redshift
+from redshift.sanitize import validate_identifier
 from dataclasses import dataclass, field
 from typing import Optional, List, Set
 
@@ -91,52 +92,60 @@ class RedshiftGroup:
     def add_user(self, user_name: str, rs: Redshift) -> bool:
         """
         Add a user to this group
-        
+
         Args:
             user_name: The name of the user to add
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Validate and sanitize names
+            group = validate_identifier(self.group_name)
+            user = validate_identifier(user_name)
+
             # Add user to group SQL
-            add_sql = f"ALTER GROUP {self.group_name} ADD USER {user_name};"
-            
+            add_sql = f"ALTER GROUP {group} ADD USER {user};"
+
             # Execute SQL
             success = rs.execute_cmd(add_sql)
-            
+
             if success:
                 self.users.add(user_name)
-                
+
             return success
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error adding user {user_name} to group {self.group_name}: {e}")
             return False
     
     def remove_user(self, user_name: str, rs: Redshift) -> bool:
         """
         Remove a user from this group
-        
+
         Args:
             user_name: The name of the user to remove
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Validate and sanitize names
+            group = validate_identifier(self.group_name)
+            user = validate_identifier(user_name)
+
             # Remove user from group SQL
-            remove_sql = f"ALTER GROUP {self.group_name} DROP USER {user_name};"
-            
+            remove_sql = f"ALTER GROUP {group} DROP USER {user};"
+
             # Execute SQL
             success = rs.execute_cmd(remove_sql)
-            
+
             if success:
                 self.users.discard(user_name)
-                
+
             return success
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error removing user {user_name} from group {self.group_name}: {e}")
             return False
     
@@ -176,44 +185,50 @@ class RedshiftGroup:
     def create_group(cls, group_name: str, rs: Redshift) -> 'RedshiftGroup':
         """
         Create a new group in Redshift
-        
+
         Args:
             group_name: The name of the new group
             rs: Redshift connection
-            
+
         Returns:
             RedshiftGroup object or None if creation failed
         """
         try:
+            # Validate and sanitize group name
+            group = validate_identifier(group_name)
+
             # Create group SQL
-            create_sql = f"CREATE GROUP {group_name};"
-            
+            create_sql = f"CREATE GROUP {group};"
+
             # Execute SQL
             success = rs.execute_cmd(create_sql)
-            
+
             if success:
                 return cls(group_name=group_name)
             return None
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error creating group {group_name}: {e}")
             return None
     
     def delete(self, rs: Redshift) -> bool:
         """
         Delete this group from Redshift
-        
+
         Args:
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Validate and sanitize group name
+            group = validate_identifier(self.group_name)
+
             # Delete group SQL
-            delete_sql = f"DROP GROUP {self.group_name};"
-            
+            delete_sql = f"DROP GROUP {group};"
+
             # Execute SQL
             return rs.execute_cmd(delete_sql)
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error deleting group {self.group_name}: {e}")
             return False

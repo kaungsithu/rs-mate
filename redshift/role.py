@@ -1,5 +1,6 @@
 import redshift.sql_queries as sql
 from redshift.database import Redshift
+from redshift.sanitize import validate_identifier
 from dataclasses import dataclass, field
 from typing import Optional, List, Set
 
@@ -210,35 +211,38 @@ class RedshiftRole:
     def create_role(cls, role_name: str, rs: Redshift) -> 'RedshiftRole':
         """
         Create a new role in Redshift
-        
+
         Args:
             role_name: The name of the new role
             rs: Redshift connection
-            
+
         Returns:
             RedshiftRole object or None if creation failed
         """
         try:
+            # Validate and sanitize role name
+            role = validate_identifier(role_name)
+
             # Create role SQL
-            create_sql = f"CREATE ROLE {role_name};"
-            
+            create_sql = f"CREATE ROLE {role};"
+
             # Execute SQL
             success = rs.execute_cmd(create_sql)
-            
+
             if success:
                 return cls(role_name=role_name)
             return None
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error creating role {role_name}: {e}")
             return None
     
     def delete(self, rs: Redshift) -> bool:
         """
         Delete this role from Redshift
-        
+
         Args:
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
@@ -246,65 +250,76 @@ class RedshiftRole:
             # Check if role is granted to any users
             if self.users:
                 return False
-                
+
+            # Validate and sanitize role name
+            role = validate_identifier(self.role_name)
+
             # Delete role SQL
-            delete_sql = f"DROP ROLE {self.role_name};"
-            
+            delete_sql = f"DROP ROLE {role};"
+
             # Execute SQL
             return rs.execute_cmd(delete_sql)
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error deleting role {self.role_name}: {e}")
             return False
     
     def add_nested_role(self, nested_role_name: str, rs: Redshift) -> bool:
         """
         Add a nested role to this role
-        
+
         Args:
             nested_role_name: The name of the nested role to add
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Validate and sanitize role names
+            nested_role = validate_identifier(nested_role_name)
+            current_role = validate_identifier(self.role_name)
+
             # Grant role SQL
-            grant_sql = f"GRANT ROLE {nested_role_name} TO ROLE {self.role_name};"
-            
+            grant_sql = f"GRANT ROLE {nested_role} TO ROLE {current_role};"
+
             # Execute SQL
             success = rs.execute_cmd(grant_sql)
-            
+
             if success:
                 self.nested_roles.add(nested_role_name)
-                
+
             return success
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error adding nested role {nested_role_name} to {self.role_name}: {e}")
             return False
     
     def remove_nested_role(self, nested_role_name: str, rs: Redshift) -> bool:
         """
         Remove a nested role from this role
-        
+
         Args:
             nested_role_name: The name of the nested role to remove
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Validate and sanitize role names
+            nested_role = validate_identifier(nested_role_name)
+            current_role = validate_identifier(self.role_name)
+
             # Revoke role SQL
-            revoke_sql = f"REVOKE ROLE {nested_role_name} FROM ROLE {self.role_name};"
-            
+            revoke_sql = f"REVOKE ROLE {nested_role} FROM ROLE {current_role};"
+
             # Execute SQL
             success = rs.execute_cmd(revoke_sql)
-            
+
             if success:
                 self.nested_roles.discard(nested_role_name)
-                
+
             return success
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error removing nested role {nested_role_name} from {self.role_name}: {e}")
             return False
     
@@ -340,34 +355,41 @@ class RedshiftRole:
             print(f"Error updating nested roles for {self.role_name}: {e}")
             return False
     
-    def grant_privilege(self, schema_name: str, object_name: str, object_type: str, 
+    def grant_privilege(self, schema_name: str, object_name: str, object_type: str,
                        privilege_type: str, rs: Redshift) -> bool:
         """
         Grant a privilege to this role
-        
+
         Args:
             schema_name: The name of the schema
             object_name: The name of the object
             object_type: The type of the object (TABLE, VIEW, FUNCTION, PROCEDURE)
             privilege_type: The type of privilege (SELECT, INSERT, UPDATE, DELETE, EXECUTE)
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Validate and sanitize identifiers
+            schema = validate_identifier(schema_name)
+            obj_name = validate_identifier(object_name)
+            obj_type = validate_identifier(object_type)
+            priv_type = validate_identifier(privilege_type)
+            role = validate_identifier(self.role_name)
+
             # Grant privilege SQL
-            if object_type.upper() in ['TABLE', 'VIEW']:
-                grant_sql = f"GRANT {privilege_type} ON {schema_name}.{object_name} TO ROLE {self.role_name};"
-            elif object_type.upper() in ['FUNCTION', 'PROCEDURE']:
-                grant_sql = f"GRANT EXECUTE ON {object_type} {schema_name}.{object_name} TO ROLE {self.role_name};"
+            if obj_type.upper() in ['TABLE', 'VIEW']:
+                grant_sql = f"GRANT {priv_type} ON {schema}.{obj_name} TO ROLE {role};"
+            elif obj_type.upper() in ['FUNCTION', 'PROCEDURE']:
+                grant_sql = f"GRANT EXECUTE ON {obj_type} {schema}.{obj_name} TO ROLE {role};"
             else:
                 # Schema level privilege
-                grant_sql = f"GRANT {privilege_type} ON SCHEMA {schema_name} TO ROLE {self.role_name};"
-            
+                grant_sql = f"GRANT {priv_type} ON SCHEMA {schema} TO ROLE {role};"
+
             # Execute SQL
             success = rs.execute_cmd(grant_sql)
-            
+
             if success:
                 # Add to privileges list
                 self.privileges.append({
@@ -377,40 +399,47 @@ class RedshiftRole:
                     'privilege_type': privilege_type,
                     'is_grantable': False
                 })
-                
+
             return success
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error granting privilege to {self.role_name}: {e}")
             return False
     
-    def revoke_privilege(self, schema_name: str, object_name: str, object_type: str, 
+    def revoke_privilege(self, schema_name: str, object_name: str, object_type: str,
                         privilege_type: str, rs: Redshift) -> bool:
         """
         Revoke a privilege from this role
-        
+
         Args:
             schema_name: The name of the schema
             object_name: The name of the object
             object_type: The type of the object (TABLE, VIEW, FUNCTION, PROCEDURE)
             privilege_type: The type of privilege (SELECT, INSERT, UPDATE, DELETE, EXECUTE)
             rs: Redshift connection
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Validate and sanitize identifiers
+            schema = validate_identifier(schema_name)
+            obj_name = validate_identifier(object_name)
+            obj_type = validate_identifier(object_type)
+            priv_type = validate_identifier(privilege_type)
+            role = validate_identifier(self.role_name)
+
             # Revoke privilege SQL
-            if object_type.upper() in ['TABLE', 'VIEW']:
-                revoke_sql = f"REVOKE {privilege_type} ON {schema_name}.{object_name} FROM ROLE {self.role_name};"
-            elif object_type.upper() in ['FUNCTION', 'PROCEDURE']:
-                revoke_sql = f"REVOKE EXECUTE ON {object_type} {schema_name}.{object_name} FROM ROLE {self.role_name};"
+            if obj_type.upper() in ['TABLE', 'VIEW']:
+                revoke_sql = f"REVOKE {priv_type} ON {schema}.{obj_name} FROM ROLE {role};"
+            elif obj_type.upper() in ['FUNCTION', 'PROCEDURE']:
+                revoke_sql = f"REVOKE EXECUTE ON {obj_type} {schema}.{obj_name} FROM ROLE {role};"
             else:
                 # Schema level privilege
-                revoke_sql = f"REVOKE {privilege_type} ON SCHEMA {schema_name} FROM ROLE {self.role_name};"
-            
+                revoke_sql = f"REVOKE {priv_type} ON SCHEMA {schema} FROM ROLE {role};"
+
             # Execute SQL
             success = rs.execute_cmd(revoke_sql)
-            
+
             if success:
                 # Remove from privileges list
                 self.privileges = [p for p in self.privileges if not (
@@ -419,8 +448,8 @@ class RedshiftRole:
                     p['object_type'] == object_type and
                     p['privilege_type'] == privilege_type
                 )]
-                
+
             return success
-        except Exception as e:
+        except (ValueError, Exception) as e:
             print(f"Error revoking privilege from {self.role_name}: {e}")
             return False
