@@ -3,3 +3,6 @@ python_fasthtml==0.12.4
 redshift_connector==2.1.5
 MonsterUI>=1.0.0
 requests>=2.28.0
+pytest>=7.0.0
+pytest-cov>=4.0.0
+psycopg2-binary>=2.9.0
