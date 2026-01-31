@@ -5,8 +5,9 @@ Routes for listing, viewing, creating, and editing Redshift users.
 from fasthtml.common import RedirectResponse
 from redshift.user import RedshiftUser
 from components.common import MainLayout
-from components.user import mk_user_table, mk_user_form
-from routes.helpers import get_rs, set_rs, set_user, add_toast
+from components.user import mk_user_table, mk_user_form, mk_user_props
+from components.common import BadgeList, RemovableList
+from routes.helpers import get_rs, set_rs, set_user, get_user, add_toast
 
 
 def register_routes(app):
@@ -65,6 +66,18 @@ def register_routes(app):
             add_toast(session, f'Error retrieving user with ID: {user_id}', 'error', True)
             return RedirectResponse('/users')
 
+    @app.rt('/user-groups/{user_id}')
+    def get(session, user_id: int):
+        """Get user groups as badge list."""
+        groups = RedshiftUser.get_user_groups(user_id, get_rs(session))
+        return BadgeList(groups) if groups else '-'
+
+    @app.rt('/user-roles/{user_id}')
+    def get(session, user_id: int):
+        """Get user roles as badge list."""
+        roles = RedshiftUser.get_user_roles(user_id, get_rs(session))
+        return BadgeList(roles) if roles else '-'
+
     @app.rt('/user/create')
     def post(session, user: RedshiftUser):
         """Create a new user."""
@@ -82,6 +95,108 @@ def register_routes(app):
         except Exception as e:
             add_toast(session, f'Error creating user: {str(e)}', 'error', True)
             return RedirectResponse(url='/users', status_code=303)
+
+    @app.rt('/user/save-props')
+    def post(session, user: RedshiftUser):
+        """Save user properties."""
+        try:
+            if user.update(get_rs(session)):
+                add_toast(session, f'User: {user.user_name} saved successfully!', 'success', True)
+            else:
+                add_toast(session, f'Error saving user: {user.user_name}!', 'error', True)
+            return mk_user_props(user)
+        except Exception as e:
+            add_toast(session, f'Error saving user properties: {str(e)}', 'error', True)
+            return mk_user_props(user)
+
+    @app.rt('/user/add-group')
+    def post(session, frm_data: dict):
+        """Add user to a group."""
+        try:
+            user = get_user(session)
+            # group_select returning a list with two values: [option_placeholder, selected_value]
+            group_name = frm_data.get('ugroup-select', [None, None])[1] if frm_data.get('ugroup-select') else None
+            if group_name:
+                user.groups = set(user.groups) | {group_name}
+                set_user(session, user)
+            ls_id = frm_data.get('group_list_id')
+            return RemovableList(user.groups, id=ls_id,
+                               hx_post='/user/remove-group', hx_target=f'#{ls_id}')
+        except Exception as e:
+            add_toast(session, f'Error adding user to group: {str(e)}', 'error', True)
+            return None
+
+    @app.rt('/user/remove-group')
+    def post(session, frm_data: dict):
+        """Remove user from a group."""
+        try:
+            user = get_user(session)
+            user.groups = set(user.groups) - set(frm_data.keys())
+            set_user(session, user)
+            ls_id = frm_data.get('group_list_id')
+            return RemovableList(user.groups, id=ls_id,
+                               hx_post='/user/remove-group', hx_target=f'#{ls_id}')
+        except Exception as e:
+            add_toast(session, f'Error removing user from group: {str(e)}', 'error', True)
+            return None
+
+    @app.rt('/user/save-groups')
+    def post(session, user: RedshiftUser):
+        """Save user group memberships to database."""
+        try:
+            user = get_user(session)
+            if user.save_groups(get_rs(session)):
+                add_toast(session, 'User groups saved successfully!', 'success', True)
+            else:
+                add_toast(session, 'Error saving user groups!', 'error', True)
+        except Exception as e:
+            add_toast(session, f'Error saving user groups: {str(e)}', 'error', True)
+        return None
+
+    @app.rt('/user/add-role')
+    def post(session, frm_data: dict):
+        """Add user to a role."""
+        try:
+            user = get_user(session)
+            # role_select returning a list with two values: [option_placeholder, selected_value]
+            role_name = frm_data.get('urole-select', [None, None])[1] if frm_data.get('urole-select') else None
+            if role_name:
+                user.roles = set(user.roles) | {role_name}
+                set_user(session, user)
+            ls_id = frm_data.get('role_list_id')
+            return RemovableList(user.roles, id=ls_id,
+                               hx_post='/user/remove-role', hx_target=f'#{ls_id}')
+        except Exception as e:
+            add_toast(session, f'Error adding user to role: {str(e)}', 'error', True)
+            return None
+
+    @app.rt('/user/remove-role')
+    def post(session, frm_data: dict):
+        """Remove user from a role."""
+        try:
+            user = get_user(session)
+            user.roles = set(user.roles) - set(frm_data.keys())
+            set_user(session, user)
+            ls_id = frm_data.get('role_list_id')
+            return RemovableList(user.roles, id=ls_id,
+                               hx_post='/user/remove-role', hx_target=f'#{ls_id}')
+        except Exception as e:
+            add_toast(session, f'Error removing user from role: {str(e)}', 'error', True)
+            return None
+
+    @app.rt('/user/save-roles')
+    def post(session, user: RedshiftUser):
+        """Save user role memberships to database."""
+        try:
+            user = get_user(session)
+            if user.save_roles(get_rs(session)):
+                set_user(session, user)
+                add_toast(session, 'User roles saved successfully!', 'success', True)
+            else:
+                add_toast(session, 'Error saving user roles!', 'error', True)
+        except Exception as e:
+            add_toast(session, f'Error saving user roles: {str(e)}', 'error', True)
+        return None
 
     @app.rt('/user/{user_id}')
     def delete(session, user_id: int):
@@ -104,14 +219,3 @@ def register_routes(app):
         except Exception as e:
             add_toast(session, f'Error deleting user with ID {user_id}: {str(e)}', 'error', True)
             return None
-
-    # TODO: Extract remaining user routes:
-    # - GET /user-groups/{user_id} - List user groups
-    # - GET /user-roles/{user_id} - List user roles
-    # - POST /user/add-group - Add user to group
-    # - POST /user/remove-group - Remove user from group
-    # - POST /user/save-groups - Save user groups
-    # - POST /user/add-role - Add user to role
-    # - POST /user/remove-role - Remove user from role
-    # - POST /user/save-roles - Save user roles
-    # - POST /user/save-props - Save user properties
