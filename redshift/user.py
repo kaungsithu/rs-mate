@@ -99,13 +99,44 @@ class RedshiftUser:
         'Get all groups a user belongs to.'
         results = rs.execute_query(sql.GET_USER_GROUPS, (user_id,))
         return [g[0] for g in results] if results else []
-        
+
 
     @staticmethod
     def get_user_roles(user_id, rs: Redshift):
         'Get all roles a user belongs to'
         results = rs.execute_query(sql.GET_USER_ROLES, (user_id,))
         return [r[0] for r in results] if results else []
+
+    @staticmethod
+    def get_user_groups_and_roles_batch(user_id, rs: Redshift) -> tuple:
+        """
+        Get both groups and roles for a user in a single batch query.
+
+        Args:
+            user_id: The user ID
+            rs: Redshift connection
+
+        Returns:
+            tuple: (groups_list, roles_list)
+        """
+        try:
+            # The combined query uses the user_id parameter 4 times (twice for groups, twice for roles)
+            results = rs.execute_query(sql.GET_USER_GROUPS_AND_ROLES, (user_id, user_id, user_id, user_id))
+            groups = []
+            roles = []
+
+            if results:
+                for row in results:
+                    # row[0] = user_id, row[1] = type, row[2] = name
+                    if row[1] == 'GROUP':
+                        groups.append(row[2])
+                    elif row[1] == 'ROLE':
+                        roles.append(row[2])
+
+            return groups, roles
+        except Exception as e:
+            print(f"Error getting user groups and roles: {e}")
+            return [], []
 
     @staticmethod
     def get_user_privileges(user_name: str, rs: Redshift) -> list:
@@ -203,7 +234,7 @@ class RedshiftUser:
 
     @classmethod
     def get_user(cls, user_id: int, rs: Redshift, user_name: str = None, all_info: bool = True) -> 'RedshiftUser':
-        'Get complete user information'
+        'Get complete user information (optimized with batch queries)'
         query = sql.GET_USER_INFO if user_name is None else sql.GET_USER_INFO_BY_NAME
         param = (user_name,) if user_name is not None else (user_id,)
         results = rs.execute_query(query, param)
@@ -212,12 +243,12 @@ class RedshiftUser:
             user = cls(*results[0])
             if all_info:
                 user.update_fields(RedshiftUser.get_svv_user_info(user_id, rs))
-                user.groups = RedshiftUser.get_user_groups(user_id, rs)
-                user.roles = RedshiftUser.get_user_roles(user_id, rs)
-                
-                # Get privileges for this user
+                # Use batch query to get both groups and roles in one call
+                user.groups, user.roles = RedshiftUser.get_user_groups_and_roles_batch(user_id, rs)
+
+                # Get privileges for this user (using batch query)
                 user.privileges = cls.get_user_privileges(user.user_name, rs)
-        
+
             return user
         return None
 

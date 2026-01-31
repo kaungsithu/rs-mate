@@ -441,3 +441,36 @@ GET_ROLE_PRIVILEGES_BATCH = """
                       AND identity_name = %s
                     ORDER BY namespace_name, relation_name;
                 """
+
+# Combined queries for optimization
+GET_USER_GROUPS_AND_ROLES = """
+                    SELECT
+                        %s AS user_id,
+                        'GROUP' AS type,
+                        g.groname AS name
+                    FROM pg_group g
+                    WHERE %s = ANY(g.grolist)
+                    UNION ALL
+                    SELECT
+                        %s AS user_id,
+                        'ROLE' AS type,
+                        r.role_name AS name
+                    FROM svv_user_grants r
+                    WHERE r.user_id = %s
+                    ORDER BY type, name;
+                """
+
+GET_ROLE_USERS_AND_NESTED_ROLES = """
+                    SELECT
+                        'USER' AS type,
+                        u.user_name AS name
+                    FROM svv_user_grants u
+                    WHERE u.role_name = %s
+                    UNION ALL
+                    SELECT
+                        'NESTED_ROLE' AS type,
+                        nr.granted_role_name AS name
+                    FROM svv_role_grants nr
+                    WHERE nr.role_name = %s
+                    ORDER BY type, name;
+                """

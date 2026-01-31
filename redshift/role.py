@@ -57,12 +57,12 @@ class RedshiftRole:
     @classmethod
     def get_role(cls, role_name: str, rs: Redshift) -> 'RedshiftRole':
         """
-        Get a specific role by name
-        
+        Get a specific role by name (optimized with batch queries)
+
         Args:
             role_name: The name of the role to retrieve
             rs: Redshift connection
-            
+
         Returns:
             RedshiftRole object or None if not found
         """
@@ -71,19 +71,16 @@ class RedshiftRole:
             results = rs.execute_query(sql.GET_ROLE_INFO, (role_name,))
             if not results:
                 return None
-                
+
             # Create role object
             role = cls(role_name=role_name)
-            
-            # Get users for this role
-            role.users = set(cls.get_role_users(role_name, rs))
-            
-            # Get nested roles for this role
-            role.nested_roles = set(cls.get_role_nested_roles(role_name, rs))
-            
-            # Get privileges for this role
+
+            # Get both users and nested roles in a single batch query
+            role.users, role.nested_roles = cls.get_role_users_and_nested_roles_batch(role_name, rs)
+
+            # Get privileges for this role (using batch query)
             role.privileges = cls.get_role_privileges(role_name, rs)
-            
+
             return role
         except Exception as e:
             print(f"Error getting role {role_name}: {e}")
@@ -117,11 +114,11 @@ class RedshiftRole:
     def get_role_users(role_name: str, rs: Redshift) -> list:
         """
         Get all users for a specific role
-        
+
         Args:
             role_name: The name of the role
             rs: Redshift connection
-            
+
         Returns:
             list: List of usernames
         """
@@ -131,7 +128,38 @@ class RedshiftRole:
         except Exception as e:
             print(f"Error getting users for role {role_name}: {e}")
             return []
-    
+
+    @staticmethod
+    def get_role_users_and_nested_roles_batch(role_name: str, rs: Redshift) -> tuple:
+        """
+        Get both users and nested roles for a role in a single batch query.
+
+        Args:
+            role_name: The name of the role
+            rs: Redshift connection
+
+        Returns:
+            tuple: (users_set, nested_roles_set)
+        """
+        try:
+            # The combined query uses the role_name parameter twice
+            results = rs.execute_query(sql.GET_ROLE_USERS_AND_NESTED_ROLES, (role_name, role_name))
+            users = set()
+            nested_roles = set()
+
+            if results:
+                for row in results:
+                    # row[0] = type, row[1] = name
+                    if row[0] == 'USER':
+                        users.add(row[1])
+                    elif row[0] == 'NESTED_ROLE':
+                        nested_roles.add(row[1])
+
+            return users, nested_roles
+        except Exception as e:
+            print(f"Error getting role users and nested roles: {e}")
+            return set(), set()
+
     @staticmethod
     def get_all_role_nested_roles(rs: Redshift) -> dict:
         """
