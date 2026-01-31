@@ -41,3 +41,23 @@ def add_toast(session, message: str, toast_type: str = 'info', persist: bool = F
 def is_connected(session) -> bool:
     """Check if user is connected to Redshift."""
     return get_rs(session) is not None
+
+
+def get_user(session) -> RedshiftUser:
+    """Get the current user from session."""
+    return sess_get_obj(session, 'rsuser')
+
+
+def set_user(session, user: RedshiftUser):
+    """Store the current user in session."""
+    sess_store_obj(session, 'rsuser', user)
+
+
+def get_group(session):
+    """Get the current group from session."""
+    return sess_get_obj(session, 'rsgroup')
+
+
+def set_group(session, group):
+    """Store the current group in session."""
+    sess_store_obj(session, 'rsgroup', group)
