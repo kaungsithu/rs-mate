@@ -3,7 +3,8 @@ from monsterui.all import *
 
 __all__ = [
     'MainLayout', 'FormSectionDiv', 'HelpText', 'LinkButton', 'mk_brand', 'mk_nav_bar',
-    'LabelList', 'BadgeList', 'SelectOptions', 'RemovableList', 'ListAddRemove'
+    'LabelList', 'BadgeList', 'SelectOptions', 'RemovableList', 'ListAddRemove',
+    'mk_csrf_field'
 ]
 
 
@@ -72,13 +73,30 @@ def RemovableList(items: list, id: str, hx_post: str, hx_target: str):
 # Set of controls to add, remove list items
 def ListAddRemove(*options, items, placeholder, id, ls_id, add_hx_post, remove_hx_post):
     return Grid(
-        DivFullySpaced(   
+        DivFullySpaced(
             Select(*options, placeholder=placeholder,
                     id=id, name=id, searchable=True, cls='w-full'),
-            Button('Add', id=f'btn-add-{id}', 
+            Button('Add', id=f'btn-add-{id}',
                     hx_post=add_hx_post, hx_target=f'#{ls_id}', hx_swap='outerHTML'
             ), cls='space-x-4'
         ),
         RemovableList(items, id=ls_id, hx_post=remove_hx_post, hx_target=f'#{ls_id}'),
         id=f'grid{id}'
     )
+
+
+# CSRF Protection
+def mk_csrf_field(session: dict) -> Input:
+    """
+    Create a hidden CSRF token field for inclusion in forms.
+
+    Args:
+        session: The session dictionary
+
+    Returns:
+        A hidden Input element with the CSRF token
+    """
+    from middleware import get_csrf_token
+
+    token = get_csrf_token(session)
+    return Input(type='hidden', name='_csrf_token', value=token)
