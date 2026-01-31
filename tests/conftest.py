@@ -98,20 +98,17 @@ def rs_database(mock_session):
     """
     Fixture that provides an RSDatabase instance connected to the emulator.
     """
-    db = RSDatabase()
-    db.set_connection_params(
+    db = RSDatabase(
         host=mock_session["redshift_host"],
         port=mock_session["redshift_port"],
-        database=mock_session["redshift_db"],
+        name=mock_session["redshift_db"],
         user=mock_session["redshift_user"],
-        password=mock_session["redshift_password"],
+        pwd=mock_session["redshift_password"],
     )
     yield db
-    # Cleanup: close connection
-    if hasattr(db, "cursor") and db.cursor:
-        db.cursor.close()
-    if hasattr(db, "connection") and db.connection:
-        db.connection.close()
+    # Cleanup: close connection pool
+    if hasattr(db, "close"):
+        db.close()
 
 
 @pytest.fixture

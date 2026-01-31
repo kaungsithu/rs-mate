@@ -110,19 +110,19 @@ class RedshiftUser:
     @staticmethod
     def get_user_privileges(user_name: str, rs: Redshift) -> list:
         """
-        Get all privileges for a specific user
-        
+        Get all privileges for a specific user (uses batch query for better performance)
+
         Args:
             user_name: The name of the user
             rs: Redshift connection
-            
+
         Returns:
             list: List of privilege dictionaries
         """
         try:
-            results = rs.execute_query(sql.GET_USER_PRIVILEGES_BY_NAME, (rs.name, user_name, rs.name, user_name,))
+            results = rs.execute_query(sql.GET_USER_PRIVILEGES_BATCH, (rs.name, user_name, rs.name, user_name,))
             privileges = []
-            
+
             if results:
                 for row in results:
                     privilege = {
@@ -133,11 +133,66 @@ class RedshiftUser:
                         'is_grantable': row[4]
                     }
                     privileges.append(privilege)
-                    
+
             return privileges
         except Exception as e:
             print(f"Error getting privileges for user {user_name}: {e}")
             return []
+
+    @staticmethod
+    def get_schema_relations_batch(rs: Redshift, schema_list: List[str] = None) -> dict:
+        """
+        Get all relations (tables, views, functions, procedures) for all schemas in one batch query.
+
+        Args:
+            rs: Redshift connection
+            schema_list: Optional list of schemas to filter by. If None, gets all schemas.
+
+        Returns:
+            dict: Dictionary with schema names as keys and dict of relations as values
+                 {
+                     'schema_name': {
+                         'tables': ['table1', 'table2'],
+                         'views': ['view1'],
+                         'functions': ['func1'],
+                         'procedures': ['proc1']
+                     }
+                 }
+        """
+        try:
+            results = rs.execute_query(sql.GET_ALL_SCHEMAS_WITH_RELATIONS,
+                                      (rs.name, rs.name, rs.name, rs.name, rs.name, rs.name))
+            schema_relations = {}
+
+            if results:
+                for schema_name, relation_name, relation_type in results:
+                    # Skip if schema_list is provided and schema is not in it
+                    if schema_list and schema_name not in schema_list:
+                        continue
+
+                    if schema_name not in schema_relations:
+                        schema_relations[schema_name] = {
+                            'tables': [],
+                            'views': [],
+                            'functions': [],
+                            'procedures': []
+                        }
+
+                    # Only add non-None relation names
+                    if relation_name is not None:
+                        if relation_type == 'TABLE':
+                            schema_relations[schema_name]['tables'].append(relation_name)
+                        elif relation_type == 'VIEW':
+                            schema_relations[schema_name]['views'].append(relation_name)
+                        elif relation_type == 'FUNCTION':
+                            schema_relations[schema_name]['functions'].append(relation_name)
+                        elif relation_type == 'PROCEDURE':
+                            schema_relations[schema_name]['procedures'].append(relation_name)
+
+            return schema_relations
+        except Exception as e:
+            print(f"Error getting schema relations batch: {e}")
+            return {}
 
     @staticmethod
     def get_svv_user_info(user_id: int, rs: Redshift) -> dict:

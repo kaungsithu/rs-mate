@@ -1,10 +1,11 @@
 from ast import Tuple
 from dataclasses import dataclass, asdict, field
 from cryptography.fernet import Fernet
-from nbclient import execute
 import redshift_connector
 import json
 import os
+import queue
+import threading
 from typing import Optional
 from .sql_queries import *
 
@@ -13,13 +14,103 @@ from .sql_queries import *
 redshift_connector.paramstyle = 'pyformat'
 
 
+class ConnectionPool:
+    """Thread-safe connection pool for Redshift connections."""
+
+    def __init__(self, host: str, port: int, database: str, user: str, password: str,
+                 min_connections: int = 2, max_connections: int = 10):
+        self.host = host
+        self.port = port
+        self.database = database
+        self.user = user
+        self.password = password
+        self.min_connections = min_connections
+        self.max_connections = max_connections
+        self._pool = queue.Queue(maxsize=max_connections)
+        self._lock = threading.Lock()
+        self._connection_count = 0
+        self._closed = False
+
+        # Create minimum number of connections
+        for _ in range(min_connections):
+            self._create_connection()
+
+    def _create_connection(self):
+        """Create a new connection and add it to the pool."""
+        if self._connection_count >= self.max_connections:
+            return
+
+        try:
+            conn = redshift_connector.connect(
+                host=self.host,
+                port=self.port,
+                database=self.database,
+                user=self.user,
+                password=self.password
+            )
+            with self._lock:
+                self._pool.put(conn, block=False)
+                self._connection_count += 1
+        except Exception as e:
+            print(f"Failed to create connection: {e}")
+
+    def get_connection(self, timeout: float = 5.0):
+        """Get a connection from the pool or create a new one."""
+        if self._closed:
+            raise RuntimeError("Connection pool is closed")
+
+        try:
+            # Try to get a connection from the pool
+            return self._pool.get(block=True, timeout=timeout)
+        except queue.Empty:
+            # If pool is empty and we haven't reached max, create a new connection
+            with self._lock:
+                if self._connection_count < self.max_connections:
+                    self._create_connection()
+                    try:
+                        return self._pool.get(block=True, timeout=timeout)
+                    except queue.Empty:
+                        raise RuntimeError("Unable to acquire connection from pool")
+                else:
+                    raise RuntimeError("Connection pool exhausted")
+
+    def release_connection(self, conn):
+        """Return a connection to the pool."""
+        if conn and not self._closed:
+            try:
+                self._pool.put(conn, block=False)
+            except queue.Full:
+                # Pool is full, close the connection
+                try:
+                    conn.close()
+                except Exception as e:
+                    print(f"Error closing connection: {e}")
+
+    def close_all(self):
+        """Close all connections in the pool."""
+        with self._lock:
+            self._closed = True
+            # Drain the queue and close all connections
+            while not self._pool.empty():
+                try:
+                    conn = self._pool.get_nowait()
+                    try:
+                        conn.close()
+                    except Exception as e:
+                        print(f"Error closing connection: {e}")
+                except queue.Empty:
+                    break
+            self._connection_count = 0
+
+
 @dataclass
-class Redshift: 
+class Redshift:
     host: Optional[str] = None
     port: Optional[int] = 5439
     name: str = 'dev'
     user: Optional[str] = None
     pwd: Optional[str] = None
+    _pool: Optional[ConnectionPool] = field(default=None, repr=False, init=False)
     # _password: bytes = field(default=b'', repr=False)
 
     # @property
@@ -57,11 +148,23 @@ class Redshift:
             print(e)
             return None
 
+    def _get_pool(self) -> ConnectionPool:
+        """Get or create the connection pool."""
+        if self._pool is None:
+            self._pool = ConnectionPool(
+                host=self.host,
+                port=self.port,
+                database=self.name,
+                user=self.user,
+                password=self.pwd
+            )
+        return self._pool
+
     def run_sql(self, query: str, args=None, fetch=True) -> Tuple | int | None:
         try:
-            with redshift_connector.connect(
-                host=self.host, port=self.port, database=self.name, user=self.user, password=self.pwd
-            ) as conn:
+            pool = self._get_pool()
+            conn = pool.get_connection()
+            try:
                 with conn.cursor() as cursor:
                     cursor.execute(query, args=args)
 
@@ -71,9 +174,17 @@ class Redshift:
                     else:
                         conn.commit()
                         return cursor.rowcount
+            finally:
+                pool.release_connection(conn)
         except Exception as e:
             print(f"Database error: {e}")
-            return None 
+            return None
+
+    def close(self):
+        """Close the connection pool and all active connections."""
+        if self._pool is not None:
+            self._pool.close_all()
+            self._pool = None 
 
     def execute_query(self, query: str, args=None) -> Tuple | None:
         try:
@@ -196,5 +307,9 @@ class Redshift:
                 # If object name is empty or special value, it might be a schema-level privilege
                 if not object_name or object_name == schema_name:
                     return 'SCHEMA'
-                
+
                 return 'TABLE'  # Default
+
+
+# Alias for backwards compatibility
+RSDatabase = Redshift

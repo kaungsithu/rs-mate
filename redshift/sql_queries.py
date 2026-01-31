@@ -270,7 +270,7 @@ GET_SCHEMA_PROCEDURES = """
 # ===== Privileges =====
 
 GET_USER_PRIVILEGES = """
-                    SELECT 
+                    SELECT
                         COALESCE(s.namespace_name, d.schema_name, r.namespace_name) AS schema_name,
                         r.relation_name                                             AS rel_name,
                         s.privilege_type                                            AS schema_priv,
@@ -285,13 +285,159 @@ GET_USER_PRIVILEGES = """
                         d.admin_option                                              AS dpriv_admin,
                         r.admin_option                                              AS rel_admin
                     FROM svv_schema_privileges s
-                    FULL OUTER JOIN svv_default_privileges d 
+                    FULL OUTER JOIN svv_default_privileges d
                         ON  d.grantee_id    = s.identity_id
                         AND d.schema_name   = s.namespace_name
-                    FULL OUTER JOIN svv_relation_privileges r 
+                    FULL OUTER JOIN svv_relation_privileges r
                         ON  r.identity_id   = s.identity_id
                         AND r.namespace_name = s.namespace_name
                     WHERE  s.identity_id    = %s
                         OR d.grantee_id     = %s
                         OR r.identity_id    = %s;
                     """
+
+# Batch queries for performance optimization
+GET_ALL_SCHEMAS_WITH_RELATIONS = """
+                    SELECT
+                        s.schema_name,
+                        t.table_name AS relation_name,
+                        'TABLE' AS relation_type
+                    FROM svv_all_schemas s
+                    LEFT JOIN svv_tables t
+                        ON t.table_schema = s.schema_name
+                        AND t.table_catalog = %s
+                        AND t.table_type = 'BASE TABLE'
+                    WHERE s.database_name = %s
+                      AND s.schema_name NOT LIKE 'pg_%'
+                      AND s.schema_name NOT LIKE 'information_schema'
+                      AND s.schema_name <> 'public'
+                    UNION ALL
+                    SELECT
+                        s.schema_name,
+                        v.table_name AS relation_name,
+                        'VIEW' AS relation_type
+                    FROM svv_all_schemas s
+                    LEFT JOIN svv_tables v
+                        ON v.table_schema = s.schema_name
+                        AND v.table_catalog = %s
+                        AND v.table_type = 'VIEW'
+                    WHERE s.database_name = %s
+                      AND s.schema_name NOT LIKE 'pg_%'
+                      AND s.schema_name NOT LIKE 'information_schema'
+                      AND s.schema_name <> 'public'
+                    UNION ALL
+                    SELECT
+                        s.schema_name,
+                        f.function_name AS relation_name,
+                        'FUNCTION' AS relation_type
+                    FROM svv_all_schemas s
+                    LEFT JOIN svv_redshift_functions f
+                        ON f.schema_name = s.schema_name
+                        AND f.database_name = %s
+                        AND f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION')
+                    WHERE s.database_name = %s
+                      AND s.schema_name NOT LIKE 'pg_%'
+                      AND s.schema_name NOT LIKE 'information_schema'
+                      AND s.schema_name <> 'public'
+                    UNION ALL
+                    SELECT
+                        s.schema_name,
+                        p.function_name AS relation_name,
+                        'PROCEDURE' AS relation_type
+                    FROM svv_all_schemas s
+                    LEFT JOIN svv_redshift_functions p
+                        ON p.schema_name = s.schema_name
+                        AND p.database_name = %s
+                        AND p.function_type = 'STORED PROCEDURE'
+                    WHERE s.database_name = %s
+                      AND s.schema_name NOT LIKE 'pg_%'
+                      AND s.schema_name NOT LIKE 'information_schema'
+                      AND s.schema_name <> 'public'
+                    ORDER BY schema_name, relation_type, relation_name;
+                """
+
+GET_USER_PRIVILEGES_BATCH = """
+                    SELECT
+                        p.namespace_name,
+                        p.relation_name,
+                        (CASE WHEN t.table_type = 'BASE TABLE' THEN 'TABLE'
+                            ELSE 'VIEW'
+                        END) AS relation_type,
+                        p.privilege_type,
+                        p.admin_option
+                    FROM svv_relation_privileges p
+                    INNER JOIN svv_tables t
+                        ON t.table_schema = p.namespace_name
+                        AND t.table_name = p.relation_name
+                    WHERE t.table_catalog = %s
+                      AND t.table_schema NOT LIKE 'pg_%'
+                      AND t.table_schema NOT LIKE 'information_schema'
+                      AND t.table_schema <> 'public'
+                      AND t.table_type IN ('BASE TABLE', 'VIEW')
+                      AND p.identity_type = 'user'
+                      AND p.identity_name = %s
+                    UNION ALL
+                    SELECT
+                        p.namespace_name,
+                        p.function_name,
+                        (CASE WHEN f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION') THEN 'FUNCTION'
+                            ELSE 'PROCEDURE'
+                        END) AS relation_type,
+                        p.privilege_type,
+                        p.admin_option
+                    FROM svv_function_privileges p
+                    INNER JOIN svv_redshift_functions f
+                        ON f.schema_name = p.namespace_name
+                        AND f.function_name = p.function_name
+                    WHERE f.database_name = %s
+                      AND f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION', 'STORED PROCEDURE')
+                      AND f.schema_name NOT LIKE 'pg_%'
+                      AND f.schema_name NOT LIKE 'information_schema'
+                      AND f.schema_name <> 'public'
+                      AND identity_type = 'user'
+                      AND identity_name = %s
+                    ORDER BY namespace_name, relation_name;
+                """
+
+GET_ROLE_PRIVILEGES_BATCH = """
+                    SELECT
+                        p.namespace_name,
+                        p.relation_name,
+                        (CASE WHEN t.table_type = 'BASE TABLE' THEN 'TABLE'
+                            ELSE 'VIEW'
+                        END) AS relation_type,
+                        p.privilege_type,
+                        p.admin_option
+                    FROM svv_relation_privileges p
+                    INNER JOIN svv_tables t
+                        ON t.table_schema = p.namespace_name
+                        AND t.table_name = p.relation_name
+                    WHERE t.table_catalog = %s
+                      AND t.table_schema NOT LIKE 'pg_%'
+                      AND t.table_schema NOT LIKE 'information_schema'
+                      AND t.table_schema <> 'public'
+                      AND t.table_type IN ('BASE TABLE', 'VIEW')
+                      AND p.identity_type = 'role'
+                      AND p.identity_name = %s
+                    UNION ALL
+                    SELECT
+                        p.namespace_name,
+                        p.function_name,
+                        (CASE WHEN f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION') THEN 'FUNCTION'
+                            ELSE 'PROCEDURE'
+                        END) AS relation_type,
+                        p.privilege_type,
+                        p.admin_option
+                    FROM svv_function_privileges p
+                    INNER JOIN svv_redshift_functions f
+                        ON f.schema_name = p.namespace_name
+                        AND f.function_name = p.function_name
+                    WHERE f.database_name = %s
+                      AND f.function_type IN ('REGULAR FUNCTION', 'AGGREGATE FUNCTION', 'STORED PROCEDURE')
+                      AND f.schema_name NOT LIKE 'pg_%'
+                      AND f.schema_name NOT LIKE 'information_schema'
+                      AND f.schema_name <> 'public'
+                      AND identity_type = 'role'
+                      AND identity_name = %s
+                    ORDER BY namespace_name, relation_name;
+                """
